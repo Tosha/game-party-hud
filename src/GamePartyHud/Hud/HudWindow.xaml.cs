@@ -14,6 +14,10 @@ public partial class HudWindow : Window
     private bool _isLocked = true;
     public bool IsLocked => _isLocked;
 
+    private HudMember? _dragSource;
+    private Point _dragStart;
+    private const double DragThreshold = 4.0;
+
     public HudWindow()
     {
         InitializeComponent();
@@ -77,16 +81,58 @@ public partial class HudWindow : Window
         RootBorder.BorderThickness = _isLocked ? new Thickness(0) : new Thickness(1);
     }
 
-    /// <summary>Block-drag when the click lands on a non-card area of the unlocked HUD.</summary>
+    /// <summary>Block-drag on empty area, begin-swap-drag on a card, in unlocked mode.</summary>
     protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
     {
         base.OnMouseLeftButtonDown(e);
         if (_isLocked) return;
         if (IsWithinLockButton(e.OriginalSource)) return;
-        if (!IsOverMemberCard(e.OriginalSource))
+
+        _dragStart = e.GetPosition(this);
+        _dragSource = MemberCardUnder(_dragStart);
+
+        if (_dragSource is null)
         {
             DragMove();
         }
+    }
+
+    protected override void OnMouseMove(MouseEventArgs e)
+    {
+        base.OnMouseMove(e);
+        if (_isLocked || _dragSource is null || e.LeftButton != MouseButtonState.Pressed)
+            return;
+        var pos = e.GetPosition(this);
+        if ((pos - _dragStart).Length < DragThreshold) return;
+
+        var target = MemberCardUnder(pos);
+        if (target is null || ReferenceEquals(target, _dragSource)) return;
+
+        int si = MemberList.IndexOf(_dragSource);
+        int ti = MemberList.IndexOf(target);
+        if (si >= 0 && ti >= 0 && si != ti)
+        {
+            MemberList.Move(si, ti);
+        }
+    }
+
+    protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
+    {
+        base.OnMouseLeftButtonUp(e);
+        _dragSource = null;
+    }
+
+    private HudMember? MemberCardUnder(Point clientPt)
+    {
+        var result = VisualTreeHelper.HitTest(this, clientPt);
+        if (result?.VisualHit is null) return null;
+        DependencyObject? d = result.VisualHit;
+        while (d is not null)
+        {
+            if (d is FrameworkElement fe && fe.DataContext is HudMember m) return m;
+            d = VisualTreeHelper.GetParent(d);
+        }
+        return null;
     }
 
     private bool IsWithinLockButton(object source)
@@ -100,14 +146,4 @@ public partial class HudWindow : Window
         return false;
     }
 
-    private static bool IsOverMemberCard(object source)
-    {
-        var d = source as DependencyObject;
-        while (d is not null)
-        {
-            if (d is MemberCard) return true;
-            d = VisualTreeHelper.GetParent(d);
-        }
-        return false;
-    }
 }
