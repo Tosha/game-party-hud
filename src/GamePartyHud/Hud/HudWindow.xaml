@@ -1,0 +1,31 @@
+<Window x:Class="GamePartyHud.Hud.HudWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:hud="clr-namespace:GamePartyHud.Hud"
+        WindowStyle="None" AllowsTransparency="True"
+        Background="Transparent" Topmost="True"
+        ShowInTaskbar="False" ResizeMode="NoResize"
+        SizeToContent="WidthAndHeight"
+        Title="GamePartyHUD">
+    <Border x:Name="RootBorder" Padding="6" Background="#CC000000" CornerRadius="6"
+            BorderBrush="#66FFFFFF" BorderThickness="0">
+        <StackPanel>
+            <Grid HorizontalAlignment="Right" Margin="0,0,0,4">
+                <Button x:Name="LockButton" Width="20" Height="20"
+                        Background="Transparent" BorderThickness="0"
+                        Click="OnLockButtonClick"
+                        Padding="0"
+                        Focusable="False">
+                    <TextBlock x:Name="LockGlyph" Text="🔒" FontSize="12" Foreground="White"/>
+                </Button>
+            </Grid>
+            <ItemsControl x:Name="Members">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <hud:MemberCard Margin="0,2"/>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+    </Border>
+</Window>
