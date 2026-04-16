@@ -182,7 +182,11 @@ Limitation: kicking is advisory/local-enforced, not cryptographically enforced. 
 
 WebRTC uses ICE + STUN (Google's public STUN `stun.l.google.com:19302`). This handles ~85% of home internet setups.
 
-Symmetric NATs (~10-15% of users) cannot hole-punch without a TURN relay. **No TURN is provided.** Users behind symmetric NATs will see a "Could not connect to party — your network may be blocking P2P connections" error. Documented limitation.
+Symmetric NATs (~10-15% of users) cannot hole-punch without a TURN relay. **No TURN is bundled** — running one costs bandwidth money and breaks the zero-cost guarantee.
+
+**Escape hatch for affected users:** the config file supports an optional `customTurnUrl` field (plus optional `customTurnUsername` / `customTurnCredential`). When set, the URL is added to the ICE configuration and used as the last-resort relay. Not exposed in the main UI — it's a power-user setting for people who self-host `coturn`, have TURN access from another source, or want to share a TURN endpoint within a group. Default: empty.
+
+Users without a custom TURN URL who are behind a symmetric NAT will see "Could not connect to party — your network may be blocking P2P connections."
 
 ---
 
@@ -413,6 +417,7 @@ On app close or "Close party":
 - Lock state.
 - Last-joined party ID (one-click rejoin after app restart).
 - Poll interval preference.
+- Optional `customTurnUrl` / `customTurnUsername` / `customTurnCredential` (power-user escape hatch for symmetric-NAT users; empty by default).
 
 **Not persisted:** live roster, peer IDs, anything about other members. Roster is ephemeral per session.
 

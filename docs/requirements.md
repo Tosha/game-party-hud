@@ -114,6 +114,9 @@ To keep the scope small and the app focused, the following are **not** part of t
 
 ## Known limitations
 
-- Roughly 10–15% of players behind certain home-router configurations (symmetric NAT) cannot use peer-to-peer apps without a paid relay server. Those players will see a "cannot connect" message. This is a trade-off of keeping hosting cost at zero.
+- Roughly 10–15% of players behind certain home-router configurations (symmetric NAT) cannot connect peer-to-peer without a paid relay server. Those players will see a "cannot connect" message. This is a trade-off of keeping hosting cost at zero. **Workarounds for affected players:**
+    - Enable **UPnP** or "open NAT" in the router settings (often resolves it).
+    - Use a gaming VPN such as **ZeroTier** or **Radmin VPN** to create a virtual local network that bypasses NAT entirely.
+    - Advanced users can point the app at their own relay server (a self-hosted TURN server, e.g. `coturn`) via an optional setting in the config file.
 - Games with animated, gradient, or textured HP bars may give inaccurate readings. Re-calibrating with a full HP bar usually resolves it.
 - The app reads the screen. Moving your game window means re-calibrating to the new position.
