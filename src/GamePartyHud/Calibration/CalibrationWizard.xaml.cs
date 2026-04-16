@@ -13,12 +13,12 @@ public partial class CalibrationWizard : Window
 
     private readonly AppConfig _initial;
     private readonly IScreenCapture _capture;
-    private readonly OcrService _ocr;
+    private readonly IOcrService _ocr;
     private HpCalibration? _hpCal;
     private HpRegion? _nickRegion;
     private string _ocrText = "";
 
-    public CalibrationWizard(AppConfig initial, IScreenCapture capture, OcrService ocr)
+    public CalibrationWizard(AppConfig initial, IScreenCapture capture, IOcrService ocr)
     {
         InitializeComponent();
         _initial = initial;

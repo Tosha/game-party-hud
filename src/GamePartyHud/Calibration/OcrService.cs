@@ -8,8 +8,20 @@ using Windows.Security.Cryptography;
 
 namespace GamePartyHud.Calibration;
 
+/// <summary>OCR abstraction. <see cref="OcrService"/> is the real impl; <see cref="NullOcrService"/> is the no-op fallback.</summary>
+public interface IOcrService
+{
+    Task<string> RecognizeAsync(byte[] bgra, int width, int height);
+}
+
+/// <summary>Returns empty text always. Used when Windows OCR isn't available on the machine.</summary>
+public sealed class NullOcrService : IOcrService
+{
+    public Task<string> RecognizeAsync(byte[] bgra, int width, int height) => Task.FromResult(string.Empty);
+}
+
 /// <summary>Wrapper over <see cref="OcrEngine"/>. Creates a single engine once and reuses it.</summary>
-public sealed class OcrService
+public sealed class OcrService : IOcrService
 {
     private readonly OcrEngine _engine;
 
@@ -21,7 +33,6 @@ public sealed class OcrService
                 "No OCR engine available on this system. Install an OCR language pack in Windows Settings → Time & Language → Language.");
     }
 
-    /// <summary>Run OCR on a BGRA byte buffer and return the concatenated recognized text.</summary>
     public async Task<string> RecognizeAsync(byte[] bgra, int width, int height)
     {
         if (bgra.Length < width * height * 4)
