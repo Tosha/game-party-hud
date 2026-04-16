@@ -1,0 +1,37 @@
+<UserControl x:Class="GamePartyHud.Hud.MemberCard"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Width="240" Height="40"
+             Background="Transparent">
+    <Border Padding="6,4" Background="#99000000" CornerRadius="4"
+            Opacity="{Binding Opacity}">
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Width="24" Height="24" Margin="0,0,8,0"
+                    Background="#33FFFFFF" CornerRadius="3">
+                <TextBlock Text="{Binding RoleGlyph}"
+                           Foreground="White"
+                           FontSize="14"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"/>
+            </Border>
+
+            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                <TextBlock Text="{Binding Nickname}" Foreground="White"
+                           FontSize="11" FontWeight="SemiBold"
+                           TextTrimming="CharacterEllipsis"/>
+                <Grid Height="8" Margin="0,3,0,0" Width="180" HorizontalAlignment="Left">
+                    <Border Background="#33000000" CornerRadius="1"/>
+                    <Border Background="#FFE12A2A" CornerRadius="1"
+                            HorizontalAlignment="Left"
+                            Width="{Binding HpPercent, Converter={StaticResource HpWidthConverter}, ConverterParameter=180}"/>
+                    <Border BorderBrush="#55000000" BorderThickness="1" CornerRadius="1"/>
+                </Grid>
+            </StackPanel>
+        </Grid>
+    </Border>
+</UserControl>
