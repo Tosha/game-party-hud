@@ -7,7 +7,7 @@
         ShowInTaskbar="False" ResizeMode="NoResize"
         SizeToContent="WidthAndHeight"
         Title="GamePartyHUD">
-    <Border x:Name="RootBorder" Padding="6" Background="#CC000000" CornerRadius="6"
+    <Border x:Name="RootBorder" Padding="6" Background="#66000000" CornerRadius="6"
             BorderBrush="#66FFFFFF" BorderThickness="0">
         <StackPanel>
             <Grid HorizontalAlignment="Right" Margin="0,0,0,4">

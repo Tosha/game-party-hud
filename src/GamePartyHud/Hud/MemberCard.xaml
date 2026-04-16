@@ -3,7 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              Width="240" Height="40"
              Background="Transparent">
-    <Border Padding="6,4" Background="#99000000" CornerRadius="4"
+    <Border Padding="6,4" Background="#4C000000" CornerRadius="4"
             Opacity="{Binding Opacity}">
         <Grid>
             <Grid.ColumnDefinitions>
@@ -24,11 +24,11 @@
                 <TextBlock Text="{Binding Nickname}" Foreground="White"
                            FontSize="11" FontWeight="SemiBold"
                            TextTrimming="CharacterEllipsis"/>
-                <Grid Height="8" Margin="0,3,0,0" Width="180" HorizontalAlignment="Left">
+                <Grid Height="8" Margin="0,3,0,0" Width="90" HorizontalAlignment="Left">
                     <Border Background="#33000000" CornerRadius="1"/>
                     <Border Background="#FFE12A2A" CornerRadius="1"
                             HorizontalAlignment="Left"
-                            Width="{Binding HpPercent, Converter={StaticResource HpWidthConverter}, ConverterParameter=180}"/>
+                            Width="{Binding HpPercent, Converter={StaticResource HpWidthConverter}, ConverterParameter=90}"/>
                     <Border BorderBrush="#55000000" BorderThickness="1" CornerRadius="1"/>
                 </Grid>
             </StackPanel>
