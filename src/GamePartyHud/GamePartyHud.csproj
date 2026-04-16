@@ -18,4 +18,8 @@
     <Company>Game Party HUD contributors</Company>
     <Copyright>See LICENSE</Copyright>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Drawing.Common" Version="8.0.10" />
+  </ItemGroup>
 </Project>
