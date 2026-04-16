@@ -1,0 +1,17 @@
+# Claude Code local settings
+.claude/
+
+# OS / editor cruft
+Thumbs.db
+.DS_Store
+*.swp
+.vs/
+.idea/
+.vscode/
+
+# .NET build output (for later)
+bin/
+obj/
+*.user
+*.suo
+publish/
