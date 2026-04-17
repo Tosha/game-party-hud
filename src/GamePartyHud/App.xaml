@@ -1,9 +1,18 @@
 <Application x:Class="GamePartyHud.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              xmlns:hud="clr-namespace:GamePartyHud.Hud"
              ShutdownMode="OnExplicitShutdown">
     <Application.Resources>
-        <hud:HpWidthConverter x:Key="HpWidthConverter"/>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <!-- Lepo WPF-UI dark theme (Fluent Design, gamer-grade dark look) -->
+                <ui:ThemesDictionary Theme="Dark" />
+                <ui:ControlsDictionary />
+            </ResourceDictionary.MergedDictionaries>
+
+            <hud:HpWidthConverter x:Key="HpWidthConverter"/>
+        </ResourceDictionary>
     </Application.Resources>
 </Application>

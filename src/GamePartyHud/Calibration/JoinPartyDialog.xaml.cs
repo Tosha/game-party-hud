@@ -1,8 +1,9 @@
 using System.Windows;
+using Wpf.Ui.Controls;
 
 namespace GamePartyHud.Calibration;
 
-public partial class JoinPartyDialog : Window
+public partial class JoinPartyDialog : FluentWindow
 {
     public string? PartyId { get; private set; }
 
