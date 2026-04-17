@@ -3,38 +3,34 @@ name: release
 on:
   push:
     tags:
-      - 'v*.*.*'
+      - 'v*'
 
 permissions:
-  contents: write  # required to upload release assets
+  contents: write
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
 
 jobs:
-  publish:
+  build-and-release:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
 
-      - name: Derive version from tag
-        id: ver
-        shell: pwsh
-        run: |
-          $tag = "${{ github.ref_name }}"
-          $v = $tag.TrimStart('v')
-          echo "version=$v" >> $env:GITHUB_OUTPUT
-
       - name: Restore
         run: dotnet restore GamePartyHud.sln
 
-      - name: Test
-        run: dotnet test GamePartyHud.sln -c Release --logger "trx;LogFileName=test-results.trx"
+      - name: Build
+        run: dotnet build GamePartyHud.sln -c Release --no-restore
 
-      - name: Publish self-contained single-file
+      - name: Test
+        run: dotnet test GamePartyHud.sln -c Release --no-build --verbosity normal
+
+      - name: Publish
         run: >
           dotnet publish src/GamePartyHud/GamePartyHud.csproj
           -c Release
@@ -42,23 +38,16 @@ jobs:
           --self-contained true
           -p:PublishSingleFile=true
           -p:IncludeNativeLibrariesForSelfExtract=true
-          -p:Version=${{ steps.ver.outputs.version }}
-          -p:FileVersion=${{ steps.ver.outputs.version }}.0
-          -p:AssemblyVersion=${{ steps.ver.outputs.version }}.0
-          -o publish/win-x64
 
-      - name: Archive release binary
+      - name: Zip release
         shell: pwsh
         run: |
-          Compress-Archive -Path publish/win-x64/GamePartyHud.exe -DestinationPath publish/GamePartyHud-${{ steps.ver.outputs.version }}-win-x64.zip
+          $publishDir = "src/GamePartyHud/bin/Release/net8.0-windows10.0.19041.0/win-x64/publish"
+          Compress-Archive -Path "$publishDir/GamePartyHud.exe" -DestinationPath "GamePartyHud-${{ github.ref_name }}-win-x64.zip"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          name: GamePartyHud ${{ steps.ver.outputs.version }}
-          draft: false
-          prerelease: ${{ contains(github.ref_name, '-') }}
           generate_release_notes: true
-          files: |
-            publish/GamePartyHud-${{ steps.ver.outputs.version }}-win-x64.zip
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          files: GamePartyHud-${{ github.ref_name }}-win-x64.zip
