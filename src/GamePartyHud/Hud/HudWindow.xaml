@@ -22,7 +22,13 @@
             <ItemsControl x:Name="Members">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <hud:MemberCard Margin="0,2"/>
+                        <hud:MemberCard Margin="0,2">
+                            <hud:MemberCard.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="Kick from party" Click="OnKickClick"/>
+                                </ContextMenu>
+                            </hud:MemberCard.ContextMenu>
+                        </hud:MemberCard>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>

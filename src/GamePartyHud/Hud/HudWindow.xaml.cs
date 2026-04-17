@@ -1,6 +1,7 @@
 using System;
 using System.Collections.ObjectModel;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -17,6 +18,9 @@ public partial class HudWindow : Window
     private HudMember? _dragSource;
     private Point _dragStart;
     private const double DragThreshold = 4.0;
+
+    /// <summary>Raised when the user picks "Kick from party" on a card's context menu.</summary>
+    public event Action<string>? KickRequested;
 
     public HudWindow()
     {
@@ -146,4 +150,25 @@ public partial class HudWindow : Window
         return false;
     }
 
+    private static HudMember? MemberFromContextMenuSender(object sender)
+    {
+        // ContextMenu is a popup tree outside the main visual tree, so DataContext
+        // doesn't auto-flow. Walk up from the MenuItem to the ContextMenu, then
+        // use PlacementTarget (the element that owns the menu) to find the HudMember.
+        if (sender is not MenuItem mi) return null;
+        DependencyObject? current = mi;
+        while (current is not null && current is not System.Windows.Controls.ContextMenu)
+            current = LogicalTreeHelper.GetParent(current);
+        if (current is not System.Windows.Controls.ContextMenu cm) return null;
+        if (cm.PlacementTarget is not FrameworkElement target) return null;
+        return target.DataContext as HudMember;
+    }
+
+    private void OnKickClick(object sender, RoutedEventArgs e)
+    {
+        if (MemberFromContextMenuSender(sender) is { } m)
+        {
+            KickRequested?.Invoke(m.PeerId);
+        }
+    }
 }
