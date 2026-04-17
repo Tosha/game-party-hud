@@ -1,0 +1,7 @@
+# Code owners for this repository.
+# Every file in every directory is owned by @Tosha.
+# PRs touching any file automatically request review from @Tosha.
+# Combined with "Require review from Code Owners" branch protection,
+# no PR can be merged without the owner's approval.
+
+*       @Tosha
