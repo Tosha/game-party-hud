@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using GamePartyHud.Capture;
 using GamePartyHud.Config;
+using GamePartyHud.Diagnostics;
 using GamePartyHud.Party;
 using Wpf.Ui.Controls;
 
@@ -49,18 +50,26 @@ public partial class CalibrationWizard : FluentWindow
 
     private async void OnPickRegion(object sender, RoutedEventArgs e)
     {
+        Log.Info("CalibrationWizard: Pick-region button clicked.");
         Hide();
         try
         {
             var picker = new RegionSelectorWindow(
                 "Drag around your character name AND HP bar together");
             picker.ShowDialog();
-            if (picker.Result is not { } region) return;
+            if (picker.Result is not { } region)
+            {
+                Log.Info("CalibrationWizard: region selection cancelled.");
+                return;
+            }
+            Log.Info($"CalibrationWizard: region selected {region.W}x{region.H} at ({region.X},{region.Y}).");
 
             // Capture the whole selected region so we can auto-split it.
             var bgra = await _capture.CaptureBgraAsync(region);
+            Log.Info($"CalibrationWizard: captured {bgra.Length} bytes of BGRA pixels.");
 
             var bar = HpBarDetector.FindTopBar(bgra, region.W, region.H);
+            Log.Info($"CalibrationWizard: HP bar detection result: {(bar is null ? "not found" : $"rows {bar.Value.YStart}..{bar.Value.YEnd}")}.");
             if (bar is null)
             {
                 RegionStatus.Foreground = System.Windows.Media.Brushes.DarkRed;
@@ -108,10 +117,13 @@ public partial class CalibrationWizard : FluentWindow
                 try
                 {
                     var nickBgra = CropRows(bgra, region.W, 0, nickHeight);
+                    Log.Info($"CalibrationWizard: running OCR on {region.W}x{nickHeight} nickname strip.");
                     ocrText = await _ocr.RecognizeAsync(nickBgra, region.W, nickHeight);
+                    Log.Info($"CalibrationWizard: OCR returned: '{ocrText}'.");
                 }
-                catch
+                catch (Exception ocrEx)
                 {
+                    Log.Error("CalibrationWizard: OCR threw; continuing with empty nickname.", ocrEx);
                     ocrText = "";
                 }
             }
@@ -130,6 +142,7 @@ public partial class CalibrationWizard : FluentWindow
         }
         catch (Exception ex)
         {
+            Log.Error("CalibrationWizard: OnPickRegion failed.", ex);
             RegionStatus.Foreground = System.Windows.Media.Brushes.DarkRed;
             RegionStatus.Text = "Error: " + ex.Message;
         }
@@ -181,17 +194,26 @@ public partial class CalibrationWizard : FluentWindow
             return;
         }
 
-        var role = RoleCombo.SelectedItem is Role r ? r : _initial.Role;
-        Result = _initial with
+        try
         {
-            HpCalibration = _hpCal ?? _initial.HpCalibration,
-            NicknameRegion = _nickRegion ?? _initial.NicknameRegion,
-            Nickname = string.IsNullOrWhiteSpace(NickText.Text)
-                ? _initial.Nickname
-                : NickText.Text.Trim(),
-            Role = role
-        };
-        DialogResult = true;
-        Close();
+            var role = RoleCombo.SelectedItem is Role r ? r : _initial.Role;
+            Result = _initial with
+            {
+                HpCalibration = _hpCal ?? _initial.HpCalibration,
+                NicknameRegion = _nickRegion ?? _initial.NicknameRegion,
+                Nickname = string.IsNullOrWhiteSpace(NickText.Text)
+                    ? _initial.Nickname
+                    : NickText.Text.Trim(),
+                Role = role
+            };
+            Log.Info($"CalibrationWizard: saving result. HP calibrated={(_hpCal is not null)}, Nickname='{Result.Nickname}', Role={role}.");
+            DialogResult = true;
+            Close();
+        }
+        catch (Exception ex)
+        {
+            Log.Error("CalibrationWizard: Save step threw.", ex);
+            throw;
+        }
     }
 }

@@ -17,6 +17,7 @@ public sealed class TrayIcon : IDisposable
     public event Action? CopyPartyIdRequested;
     public event Action? ChangeNicknameRequested;
     public event Action? ChangeRoleRequested;
+    public event Action? OpenLogFolderRequested;
     public event Action? QuitRequested;
 
     public TrayIcon()
@@ -46,6 +47,7 @@ public sealed class TrayIcon : IDisposable
         m.Items.Add("Join party\u2026",         null, (_, _) => JoinPartyRequested?.Invoke());
         m.Items.Add("Copy party ID",         null, (_, _) => CopyPartyIdRequested?.Invoke());
         m.Items.Add(new ToolStripSeparator());
+        m.Items.Add("Open log folder",       null, (_, _) => OpenLogFolderRequested?.Invoke());
         m.Items.Add("Quit",                  null, (_, _) => QuitRequested?.Invoke());
         return m;
     }

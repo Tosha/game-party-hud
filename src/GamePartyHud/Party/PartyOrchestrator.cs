@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using GamePartyHud.Capture;
 using GamePartyHud.Config;
+using GamePartyHud.Diagnostics;
 using GamePartyHud.Network;
 
 namespace GamePartyHud.Party;
@@ -90,9 +91,11 @@ public sealed class PartyOrchestrator : IAsyncDisposable
                 await _net.BroadcastAsync(json).ConfigureAwait(false);
             }
             catch (OperationCanceledException) { break; }
-            catch
+            catch (Exception ex)
             {
-                // Keep looping — transient errors during capture/broadcast shouldn't kill the party.
+                // Keep looping — transient errors during capture/broadcast shouldn't kill the party,
+                // but they should show up in the log so we can diagnose.
+                Log.Error("PartyOrchestrator: capture/broadcast tick failed; continuing.", ex);
             }
 
             try { await Task.Delay(_cfg.PollIntervalMs + jitter, ct).ConfigureAwait(false); }
