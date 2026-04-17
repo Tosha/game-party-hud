@@ -25,9 +25,6 @@
                         <hud:MemberCard Margin="0,2">
                             <hud:MemberCard.ContextMenu>
                                 <ContextMenu>
-                                    <MenuItem Header="Copy nickname" Click="OnCopyNickClick"/>
-                                    <MenuItem Header="Mute locally"  Click="OnMuteClick"/>
-                                    <Separator/>
                                     <MenuItem Header="Kick from party" Click="OnKickClick"/>
                                 </ContextMenu>
                             </hud:MemberCard.ContextMenu>

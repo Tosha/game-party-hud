@@ -70,7 +70,6 @@ public partial class App : Application
             if (_orch is null || _state!.LeaderPeerId != _orch.SelfPeerId) return;
             await _orch.BroadcastLocalAsync(new KickMessage(target));
         };
-        _hud.MuteToggled += peerId => _sync.ToggleMuted(peerId);
 
         _tray = new TrayIcon();
         _tray.CalibrateRequested += RunCalibration;

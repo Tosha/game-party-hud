@@ -21,8 +21,6 @@ public partial class HudWindow : Window
 
     /// <summary>Raised when the user picks "Kick from party" on a card's context menu.</summary>
     public event Action<string>? KickRequested;
-    /// <summary>Raised when the user picks "Mute locally" on a card's context menu.</summary>
-    public event Action<string>? MuteToggled;
 
     public HudWindow()
     {
@@ -164,22 +162,6 @@ public partial class HudWindow : Window
         if (current is not System.Windows.Controls.ContextMenu cm) return null;
         if (cm.PlacementTarget is not FrameworkElement target) return null;
         return target.DataContext as HudMember;
-    }
-
-    private void OnCopyNickClick(object sender, RoutedEventArgs e)
-    {
-        if (MemberFromContextMenuSender(sender) is { } m)
-        {
-            try { Clipboard.SetText(m.Nickname); } catch { }
-        }
-    }
-
-    private void OnMuteClick(object sender, RoutedEventArgs e)
-    {
-        if (MemberFromContextMenuSender(sender) is { } m)
-        {
-            MuteToggled?.Invoke(m.PeerId);
-        }
     }
 
     private void OnKickClick(object sender, RoutedEventArgs e)
