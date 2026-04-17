@@ -62,6 +62,32 @@ public class HpBarAnalyzerTests
     }
 
     [Fact]
+    public void Analyze_FullBarWithTextOverlay_ReturnsFull()
+    {
+        // Reproduces the "Throne and Liberty HP bar with '246/246' text in the
+        // middle" bug: a fully-filled red bar with the middle 60% of rows
+        // obscured by light-coloured text. An earlier version of the analyzer
+        // sampled only the middle 3 rows and misread this as ~3% HP.
+        int width = 200, height = 10;
+        var buf = SyntheticBitmap.HorizontalBar(width, height, 1.0f, (0, 0, 255), (40, 40, 40));
+        // Overlay white text on rows 3..7 (inclusive) across columns 40..160 —
+        // 120 text columns = 60% of the bar.
+        for (int y = 3; y <= 7; y++)
+        {
+            for (int x = 40; x <= 160; x++)
+            {
+                int i = (y * width + x) * 4;
+                buf[i]     = 240; // B
+                buf[i + 1] = 240; // G
+                buf[i + 2] = 240; // R — nearly-white text
+                buf[i + 3] = 255;
+            }
+        }
+        var pct = new HpBarAnalyzer().Analyze(buf, width, height, RedLtr);
+        Assert.InRange(pct, 0.95f, 1.0f);
+    }
+
+    [Fact]
     public void Analyze_Clamps_PercentToClosedUnit()
     {
         var buf = SyntheticBitmap.HorizontalBar(200, 10, 0.5f, (0, 0, 255), (40, 40, 40));
