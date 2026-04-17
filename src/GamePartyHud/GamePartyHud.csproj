@@ -11,9 +11,9 @@
     <AssemblyName>GamePartyHud</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <Version>0.0.1</Version>
-    <FileVersion>0.0.1.0</FileVersion>
-    <AssemblyVersion>0.0.1.0</AssemblyVersion>
+    <Version>0.1.0</Version>
+    <FileVersion>0.1.0.0</FileVersion>
+    <AssemblyVersion>0.1.0.0</AssemblyVersion>
     <AssemblyTitle>Game Party HUD</AssemblyTitle>
     <Product>Game Party HUD</Product>
     <Company>Game Party HUD contributors</Company>
