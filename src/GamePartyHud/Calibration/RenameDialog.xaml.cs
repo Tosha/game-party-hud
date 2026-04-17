@@ -1,8 +1,9 @@
 using System.Windows;
+using Wpf.Ui.Controls;
 
 namespace GamePartyHud.Calibration;
 
-public partial class RenameDialog : Window
+public partial class RenameDialog : FluentWindow
 {
     public string? Value { get; private set; }
 

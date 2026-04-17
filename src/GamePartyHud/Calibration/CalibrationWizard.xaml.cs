@@ -4,10 +4,11 @@ using System.Windows;
 using GamePartyHud.Capture;
 using GamePartyHud.Config;
 using GamePartyHud.Party;
+using Wpf.Ui.Controls;
 
 namespace GamePartyHud.Calibration;
 
-public partial class CalibrationWizard : Window
+public partial class CalibrationWizard : FluentWindow
 {
     public AppConfig? Result { get; private set; }
 

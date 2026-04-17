@@ -6,17 +6,29 @@
         Background="Transparent" Topmost="True"
         ShowInTaskbar="False" ResizeMode="NoResize"
         SizeToContent="WidthAndHeight"
-        Title="GamePartyHUD">
-    <Border x:Name="RootBorder" Padding="6" Background="#66000000" CornerRadius="6"
-            BorderBrush="#66FFFFFF" BorderThickness="0">
+        Title="GamePartyHUD"
+        FontFamily="Segoe UI Variable, Segoe UI">
+    <Border x:Name="RootBorder"
+            Padding="6,4"
+            CornerRadius="3"
+            BorderBrush="#66E12A2A"
+            BorderThickness="0">
+        <Border.Background>
+            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                <GradientStop Color="#661B1B1E" Offset="0"/>
+                <GradientStop Color="#66121215" Offset="1"/>
+            </LinearGradientBrush>
+        </Border.Background>
         <StackPanel>
             <Grid HorizontalAlignment="Right" Margin="0,0,0,4">
                 <Button x:Name="LockButton" Width="20" Height="20"
                         Background="Transparent" BorderThickness="0"
                         Click="OnLockButtonClick"
                         Padding="0"
-                        Focusable="False">
-                    <TextBlock x:Name="LockGlyph" Text="🔒" FontSize="12" Foreground="White"/>
+                        Focusable="False"
+                        Cursor="Hand">
+                    <TextBlock x:Name="LockGlyph" Text="🔒" FontSize="11"
+                               Foreground="#CCFFFFFF"/>
                 </Button>
             </Grid>
             <ItemsControl x:Name="Members">

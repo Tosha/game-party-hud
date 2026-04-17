@@ -1,10 +1,11 @@
 using System;
 using System.Windows;
 using GamePartyHud.Party;
+using Wpf.Ui.Controls;
 
 namespace GamePartyHud.Calibration;
 
-public partial class RolePickerDialog : Window
+public partial class RolePickerDialog : FluentWindow
 {
     public Role? Value { get; private set; }
 
