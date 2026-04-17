@@ -4,9 +4,9 @@ namespace GamePartyHud.Capture;
 
 /// <summary>
 /// Reads the HP bar fill percentage from a captured BGRA bitmap.
-/// Classifies each column of the middle 3-row band as "matches full-HP color" or not,
-/// then finds the first stable run (3+ consecutive) and the first opposite stable run.
-/// The position of the opposite run is reported as the fill fraction.
+/// Classifies each column of the bar as "matches full-HP color" or not, then finds
+/// the first stable run (3+ consecutive) and the first opposite stable run. The
+/// position of the opposite run is reported as the fill fraction.
 /// </summary>
 public sealed class HpBarAnalyzer
 {
@@ -17,28 +17,31 @@ public sealed class HpBarAnalyzer
         if (width <= 0 || height <= 0) return 0f;
         if (bgra.Length < width * height * 4) throw new ArgumentException("bgra too small", nameof(bgra));
 
-        int centerY = height / 2;
-        int y0 = Math.Max(0, centerY - 1);
-        int y1 = Math.Min(height - 1, centerY + 1);
+        // Sample the full bar height. An earlier version sampled only the middle
+        // three rows, but many games overlay numeric labels ("246/246" in Throne
+        // and Liberty, "Lv. 42" in others) precisely in the vertical middle of
+        // the bar — those text pixels don't match the calibrated fill colour,
+        // so middle-band sampling misclassified filled columns as empty. Full-
+        // height sampling with a ~20% match threshold tolerates the label
+        // without admitting stray anti-alias noise in truly empty columns.
+        int sampleRows = height;
+        int minMatches = Math.Max(2, sampleRows / 5);
+
         bool ltr = cal.Direction == FillDirection.LTR;
 
-        // Pass 1: per-column match vote across the middle band.
-        // index i runs along the bar from the "anchor" side outward.
         var colMatch = new bool[width];
         bool anyMatch = false;
         for (int i = 0; i < width; i++)
         {
             int col = ltr ? i : (width - 1 - i);
             int matches = 0;
-            int total = 0;
-            for (int y = y0; y <= y1; y++)
+            for (int y = 0; y < height; y++)
             {
                 int idx = (y * width + col) * 4;
                 var hsv = Hsv.FromBgra(bgra[idx], bgra[idx + 1], bgra[idx + 2]);
                 if (cal.Tolerance.Matches(cal.FullColor, hsv)) matches++;
-                total++;
             }
-            colMatch[i] = matches * 2 > total;   // > 50% of band rows must match
+            colMatch[i] = matches >= minMatches;
             anyMatch |= colMatch[i];
         }
 
