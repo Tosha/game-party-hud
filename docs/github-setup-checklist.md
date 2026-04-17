@@ -123,17 +123,35 @@ Open **Settings → Moderation → Code review limits** / **Interaction limits**
 
 ---
 
-## 9. Release pipeline sanity check
+## 9. Release pipeline
 
-Before the first public release:
+### How to cut a release
 
-- [ ] Manually run the CI workflow on `main` once and confirm it's green.
-- [ ] Do a pre-flight release by pushing a tag like `v0.0.0-test`:
+1. Make sure `main` is green on CI and contains everything you want in the release (including the `CHANGELOG.md` entry for the new version).
+2. Locally, on `main`:
+   ```bash
+   git checkout main && git pull --ff-only
+   git tag vX.Y.Z -m "vX.Y.Z"
+   git push origin vX.Y.Z
+   ```
+3. Watch **Actions → release** — it builds, tests, publishes the self-contained single-file `.exe`, zips it as `GamePartyHud-vX.Y.Z-win-x64.zip`, and creates a GitHub Release with auto-generated notes.
+
+The **tag name is the version of record.** No `<Version>` in the `.csproj`; the published binary inherits the default (1.0.0.0) for its AssemblyVersion metadata, but everything user-facing (release title, ZIP filename, release notes) reflects the tag.
+
+### Two gotchas to avoid
+
+- **Push the tag with `git push`, not via GitHub's web "Create a new release" form.** The workflow is triggered by `on: push: tags:` events. Creating a release through the web UI may create the tag without firing that event, and you'll end up with a release page that only has "Source code (zip/tar.gz)" — no built `.exe`. If that happens, delete the release AND the tag (`git push origin --delete vX.Y.Z`), then re-tag with `git tag` and `git push origin vX.Y.Z`.
+
+- **Tag the correct commit.** By default `git tag` tags the current `HEAD`, which must be the commit on `main` that contains the `CHANGELOG.md` entry for this version. If you're not sure, do it explicitly: `git tag vX.Y.Z <sha> -m "..."`.
+
+### Sanity check (optional)
+
+- [ ] Do a pre-flight release by pushing a tag like `v0.0.0-preflight`:
   ```bash
-  git tag v0.0.0-test -m "preflight"
-  git push origin v0.0.0-test
+  git tag v0.0.0-preflight -m "preflight"
+  git push origin v0.0.0-preflight
   ```
-  Watch **Actions → release** run. If it produces a GitHub Release with the zipped `.exe`, delete the test release and tag (`gh release delete v0.0.0-test --yes --cleanup-tag`) and tag the real `v0.1.0`.
+  Watch **Actions → release**. If it produces a release with the zipped `.exe`, delete the test release (`gh release delete v0.0.0-preflight --yes --cleanup-tag`) and cut the real tag.
 
 ---
 
