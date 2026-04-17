@@ -51,7 +51,13 @@ public partial class CalibrationWizard : FluentWindow
     private async void OnPickRegion(object sender, RoutedEventArgs e)
     {
         Log.Info("CalibrationWizard: Pick-region button clicked.");
-        Hide();
+        // Calling Hide() on a window shown via ShowDialog exits the modal loop
+        // (ShowDialog returns with DialogResult=false) even though the window
+        // is still visible after we Show() it again. That then makes a later
+        // DialogResult=true assignment throw InvalidOperationException.
+        // Opacity=0 hides the wizard from the screen capture without touching
+        // the modal state.
+        Opacity = 0;
         try
         {
             var picker = new RegionSelectorWindow(
@@ -148,7 +154,7 @@ public partial class CalibrationWizard : FluentWindow
         }
         finally
         {
-            Show();
+            Opacity = 1;
             Activate();
         }
     }
