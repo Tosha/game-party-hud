@@ -16,7 +16,6 @@ public partial class CalibrationWizard : Window
     private readonly IOcrService _ocr;
     private HpCalibration? _hpCal;
     private HpRegion? _nickRegion;
-    private string _ocrText = "";
 
     public CalibrationWizard(AppConfig initial, IScreenCapture capture, IOcrService ocr)
     {
@@ -29,15 +28,12 @@ public partial class CalibrationWizard : Window
         RoleCombo.SelectedItem = initial.Role;
         NickText.Text = initial.Nickname;
 
-        if (initial.HpCalibration is { } cal)
+        if (initial.HpCalibration is { } cal && initial.NicknameRegion is { } nr)
         {
             _hpCal = cal;
-            HpStatus.Text = $"Loaded saved region {cal.Region.W}\u00D7{cal.Region.H} at ({cal.Region.X}, {cal.Region.Y}).";
-        }
-        if (initial.NicknameRegion is { } nr)
-        {
             _nickRegion = nr;
-            NickStatus.Text = $"Loaded saved region {nr.W}\u00D7{nr.H}.";
+            RegionStatus.Text =
+                $"Loaded saved calibration: nickname {nr.W}\u00D7{nr.H}, HP bar {cal.Region.W}\u00D7{cal.Region.H}.";
         }
 
         Steps.SelectionChanged += (_, _) => UpdateButtons();
@@ -47,29 +43,94 @@ public partial class CalibrationWizard : Window
     private void UpdateButtons()
     {
         BackBtn.IsEnabled = Steps.SelectedIndex > 0;
-        NextBtn.Content = Steps.SelectedIndex == 3 ? "Save" : "Next";
+        NextBtn.Content = Steps.SelectedIndex == 2 ? "Save" : "Next";
     }
 
-    private async void OnPickHp(object sender, RoutedEventArgs e)
+    private async void OnPickRegion(object sender, RoutedEventArgs e)
     {
         Hide();
         try
         {
-            var picker = new RegionSelectorWindow("Full HP \u2014 drag around your HP bar");
+            var picker = new RegionSelectorWindow(
+                "Drag around your character name AND HP bar together");
             picker.ShowDialog();
             if (picker.Result is not { } region) return;
 
+            // Capture the whole selected region so we can auto-split it.
             var bgra = await _capture.CaptureBgraAsync(region);
-            var color = SampleFullColor(bgra, region.W, region.H);
-            _hpCal = new HpCalibration(region, color, HsvTolerance.Default, FillDirection.LTR);
-            HpStatus.Text =
-                $"Captured {region.W}\u00D7{region.H} px at ({region.X}, {region.Y}). " +
-                $"Full-HP color: H={color.H:F0}\u00B0, S={color.S:F2}, V={color.V:F2}";
+
+            var bar = HpBarDetector.FindTopBar(bgra, region.W, region.H);
+            if (bar is null)
+            {
+                RegionStatus.Foreground = System.Windows.Media.Brushes.DarkRed;
+                RegionStatus.Text =
+                    "Couldn't detect an HP bar in the selected region. Make sure your HP is full " +
+                    "(so the bar is clearly coloured) and the selection includes the whole bar. " +
+                    "Try again.";
+                _hpCal = null;
+                _nickRegion = null;
+                return;
+            }
+
+            int barY0 = bar.Value.YStart;
+            int barY1 = bar.Value.YEnd;
+
+            // HP bar sub-region within the full selection.
+            var hpRegion = new HpRegion(
+                Monitor: region.Monitor,
+                X: region.X,
+                Y: region.Y + barY0,
+                W: region.W,
+                H: barY1 - barY0 + 1);
+
+            // Nickname region = everything above the HP bar. If the bar starts at row 0
+            // (user selected only the bar), fall back to an empty nickname region above.
+            int nickHeight = barY0; // rows [0, barY0-1]
+            var nickRegion = new HpRegion(
+                Monitor: region.Monitor,
+                X: region.X,
+                Y: region.Y,
+                W: region.W,
+                H: Math.Max(0, nickHeight));
+
+            // Sample the full-HP color from the detected bar strip (use the middle row).
+            int sampleRow = barY0 + (barY1 - barY0) / 2;
+            var fullColor = SampleRowColor(bgra, region.W, sampleRow);
+
+            _hpCal = new HpCalibration(hpRegion, fullColor, HsvTolerance.Default, FillDirection.LTR);
+            _nickRegion = nickRegion;
+
+            // OCR the nickname region (if it has any rows at all).
+            string ocrText = "";
+            if (nickHeight > 0)
+            {
+                try
+                {
+                    var nickBgra = CropRows(bgra, region.W, 0, nickHeight);
+                    ocrText = await _ocr.RecognizeAsync(nickBgra, region.W, nickHeight);
+                }
+                catch
+                {
+                    ocrText = "";
+                }
+            }
+            if (!string.IsNullOrWhiteSpace(ocrText))
+            {
+                NickText.Text = ocrText;
+            }
+
+            RegionStatus.Foreground = System.Windows.Media.Brushes.DarkGreen;
+            RegionStatus.Text =
+                $"Detected HP bar: {hpRegion.W}\u00D7{hpRegion.H} px at screen ({hpRegion.X}, {hpRegion.Y}). " +
+                $"Full-HP color: H={fullColor.H:F0}\u00B0, S={fullColor.S:F2}, V={fullColor.V:F2}. " +
+                (string.IsNullOrWhiteSpace(ocrText)
+                    ? "OCR didn't read a nickname \u2014 you can type it in step 3."
+                    : $"OCR read nickname: \"{ocrText}\".");
         }
         catch (Exception ex)
         {
-            HpStatus.Text = "Error: " + ex.Message;
-            HpStatus.Foreground = System.Windows.Media.Brushes.DarkRed;
+            RegionStatus.Foreground = System.Windows.Media.Brushes.DarkRed;
+            RegionStatus.Text = "Error: " + ex.Message;
         }
         finally
         {
@@ -78,24 +139,18 @@ public partial class CalibrationWizard : Window
         }
     }
 
-    private static Hsv SampleFullColor(byte[] bgra, int w, int h)
+    private static Hsv SampleRowColor(byte[] bgra, int width, int y)
     {
-        // Average the middle horizontal strip, ignoring the outer 25% on each side
-        // to avoid border/shadow pixels.
-        int y0 = Math.Max(0, h / 2 - 1);
-        int y1 = Math.Min(h - 1, h / 2 + 1);
+        // Average the middle 50% of the row to avoid bar edges.
         double sr = 0, sg = 0, sb = 0;
         int n = 0;
-        for (int y = y0; y <= y1; y++)
+        for (int x = width / 4; x < width * 3 / 4; x++)
         {
-            for (int x = w / 4; x < w * 3 / 4; x++)
-            {
-                int i = (y * w + x) * 4;
-                sb += bgra[i];
-                sg += bgra[i + 1];
-                sr += bgra[i + 2];
-                n++;
-            }
+            int i = (y * width + x) * 4;
+            sb += bgra[i];
+            sg += bgra[i + 1];
+            sr += bgra[i + 2];
+            n++;
         }
         if (n == 0) return new Hsv(0, 0, 0);
         return Hsv.FromBgra(
@@ -104,46 +159,12 @@ public partial class CalibrationWizard : Window
             (byte)Math.Clamp(sr / n, 0, 255));
     }
 
-    private async void OnPickNick(object sender, RoutedEventArgs e)
+    private static byte[] CropRows(byte[] bgra, int width, int y0, int rowCount)
     {
-        Hide();
-        try
-        {
-            var picker = new RegionSelectorWindow("Drag around your character name");
-            picker.ShowDialog();
-            if (picker.Result is not { } region) return;
-
-            _nickRegion = region;
-            var bgra = await _capture.CaptureBgraAsync(region);
-            try
-            {
-                _ocrText = await _ocr.RecognizeAsync(bgra, region.W, region.H);
-            }
-            catch
-            {
-                _ocrText = "";
-            }
-
-            if (string.IsNullOrWhiteSpace(_ocrText))
-            {
-                NickStatus.Text = "Captured. OCR didn't read any text \u2014 you can type the name in step 4.";
-            }
-            else
-            {
-                NickStatus.Text = $"Captured. OCR read: \"{_ocrText}\"";
-                NickText.Text = _ocrText;
-            }
-        }
-        catch (Exception ex)
-        {
-            NickStatus.Text = "Error: " + ex.Message;
-            NickStatus.Foreground = System.Windows.Media.Brushes.DarkRed;
-        }
-        finally
-        {
-            Show();
-            Activate();
-        }
+        var crop = new byte[width * rowCount * 4];
+        int rowBytes = width * 4;
+        Buffer.BlockCopy(bgra, y0 * rowBytes, crop, 0, rowCount * rowBytes);
+        return crop;
     }
 
     private void OnBack(object sender, RoutedEventArgs e)
@@ -153,7 +174,7 @@ public partial class CalibrationWizard : Window
 
     private void OnNext(object sender, RoutedEventArgs e)
     {
-        if (Steps.SelectedIndex < 3)
+        if (Steps.SelectedIndex < 2)
         {
             Steps.SelectedIndex++;
             return;
