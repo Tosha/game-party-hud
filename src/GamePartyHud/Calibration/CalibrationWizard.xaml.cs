@@ -15,27 +15,24 @@ public partial class CalibrationWizard : FluentWindow
 
     private readonly AppConfig _initial;
     private readonly IScreenCapture _capture;
-    private readonly IOcrService _ocr;
     private HpCalibration? _hpCal;
-    private HpRegion? _nickRegion;
 
-    public CalibrationWizard(AppConfig initial, IScreenCapture capture, IOcrService ocr)
+    public CalibrationWizard(AppConfig initial, IScreenCapture capture)
     {
         InitializeComponent();
         _initial = initial;
         _capture = capture;
-        _ocr = ocr;
 
         RoleCombo.ItemsSource = Enum.GetValues<Role>();
         RoleCombo.SelectedItem = initial.Role;
         NickText.Text = initial.Nickname;
 
-        if (initial.HpCalibration is { } cal && initial.NicknameRegion is { } nr)
+        if (initial.HpCalibration is { } cal)
         {
             _hpCal = cal;
-            _nickRegion = nr;
             RegionStatus.Text =
-                $"Loaded saved calibration: nickname {nr.W}\u00D7{nr.H}, HP bar {cal.Region.W}\u00D7{cal.Region.H}.";
+                $"Loaded saved HP bar region: {cal.Region.W}\u00D7{cal.Region.H} at ({cal.Region.X}, {cal.Region.Y}). " +
+                $"Full-HP HSV=(H={cal.FullColor.H:F0}\u00B0, S={cal.FullColor.S:F2}, V={cal.FullColor.V:F2}).";
         }
 
         Steps.SelectionChanged += (_, _) => UpdateButtons();
@@ -51,17 +48,12 @@ public partial class CalibrationWizard : FluentWindow
     private async void OnPickRegion(object sender, RoutedEventArgs e)
     {
         Log.Info("CalibrationWizard: Pick-region button clicked.");
-        // Calling Hide() on a window shown via ShowDialog exits the modal loop
-        // (ShowDialog returns with DialogResult=false) even though the window
-        // is still visible after we Show() it again. That then makes a later
-        // DialogResult=true assignment throw InvalidOperationException.
-        // Opacity=0 hides the wizard from the screen capture without touching
-        // the modal state.
+        // Hide via opacity rather than Hide() — Hide() on a ShowDialog'd window exits the modal loop.
         Opacity = 0;
         try
         {
             var picker = new RegionSelectorWindow(
-                "Drag around your character name AND HP bar together");
+                "Drag a box around your HP bar ONLY (no nickname, no other bars)");
             picker.ShowDialog();
             if (picker.Result is not { } region)
             {
@@ -70,81 +62,17 @@ public partial class CalibrationWizard : FluentWindow
             }
             Log.Info($"CalibrationWizard: region selected {region.W}x{region.H} at ({region.X},{region.Y}).");
 
-            // Capture the whole selected region so we can auto-split it.
-            var bgra = await _capture.CaptureBgraAsync(region);
+            var bgra = await _capture.CaptureBgraAsync(region).ConfigureAwait(true);
             Log.Info($"CalibrationWizard: captured {bgra.Length} bytes of BGRA pixels.");
 
-            var bar = HpBarDetector.FindTopBar(bgra, region.W, region.H);
-            Log.Info($"CalibrationWizard: HP bar detection result: {(bar is null ? "not found" : $"rows {bar.Value.YStart}..{bar.Value.YEnd}")}.");
-            if (bar is null)
-            {
-                RegionStatus.Foreground = System.Windows.Media.Brushes.DarkRed;
-                RegionStatus.Text =
-                    "Couldn't detect an HP bar in the selected region. Make sure your HP is full " +
-                    "(so the bar is clearly coloured) and the selection includes the whole bar. " +
-                    "Try again.";
-                _hpCal = null;
-                _nickRegion = null;
-                return;
-            }
-
-            int barY0 = bar.Value.YStart;
-            int barY1 = bar.Value.YEnd;
-
-            // HP bar sub-region within the full selection.
-            var hpRegion = new HpRegion(
-                Monitor: region.Monitor,
-                X: region.X,
-                Y: region.Y + barY0,
-                W: region.W,
-                H: barY1 - barY0 + 1);
-
-            // Nickname region = everything above the HP bar. If the bar starts at row 0
-            // (user selected only the bar), fall back to an empty nickname region above.
-            int nickHeight = barY0; // rows [0, barY0-1]
-            var nickRegion = new HpRegion(
-                Monitor: region.Monitor,
-                X: region.X,
-                Y: region.Y,
-                W: region.W,
-                H: Math.Max(0, nickHeight));
-
-            // Sample the full-HP color from the detected bar strip (use the middle row).
-            int sampleRow = barY0 + (barY1 - barY0) / 2;
-            var fullColor = SampleRowColor(bgra, region.W, sampleRow);
-
-            _hpCal = new HpCalibration(hpRegion, fullColor, HsvTolerance.Default, FillDirection.LTR);
-            _nickRegion = nickRegion;
-
-            // OCR the nickname region (if it has any rows at all).
-            string ocrText = "";
-            if (nickHeight > 0)
-            {
-                try
-                {
-                    var nickBgra = CropRows(bgra, region.W, 0, nickHeight);
-                    Log.Info($"CalibrationWizard: running OCR on {region.W}x{nickHeight} nickname strip.");
-                    ocrText = await _ocr.RecognizeAsync(nickBgra, region.W, nickHeight);
-                    Log.Info($"CalibrationWizard: OCR returned: '{ocrText}'.");
-                }
-                catch (Exception ocrEx)
-                {
-                    Log.Error("CalibrationWizard: OCR threw; continuing with empty nickname.", ocrEx);
-                    ocrText = "";
-                }
-            }
-            if (!string.IsNullOrWhiteSpace(ocrText))
-            {
-                NickText.Text = ocrText;
-            }
+            var fullColor = SampleFullColor(bgra, region.W, region.H);
+            _hpCal = new HpCalibration(region, fullColor, HsvTolerance.Default, FillDirection.LTR);
 
             RegionStatus.Foreground = System.Windows.Media.Brushes.DarkGreen;
             RegionStatus.Text =
-                $"Detected HP bar: {hpRegion.W}\u00D7{hpRegion.H} px at screen ({hpRegion.X}, {hpRegion.Y}). " +
-                $"Full-HP color: H={fullColor.H:F0}\u00B0, S={fullColor.S:F2}, V={fullColor.V:F2}. " +
-                (string.IsNullOrWhiteSpace(ocrText)
-                    ? "OCR didn't read a nickname \u2014 you can type it in step 3."
-                    : $"OCR read nickname: \"{ocrText}\".");
+                $"Captured {region.W}\u00D7{region.H} at ({region.X}, {region.Y}). " +
+                $"Full-HP color: H={fullColor.H:F0}\u00B0, S={fullColor.S:F2}, V={fullColor.V:F2}.";
+            Log.Info($"CalibrationWizard: HP calibrated. Full-HP HSV=({fullColor.H:F1}, {fullColor.S:F3}, {fullColor.V:F3}).");
         }
         catch (Exception ex)
         {
@@ -159,32 +87,39 @@ public partial class CalibrationWizard : FluentWindow
         }
     }
 
-    private static Hsv SampleRowColor(byte[] bgra, int width, int y)
+    /// <summary>
+    /// Sample the full-HP color by averaging pixels from the top band and the bottom band
+    /// of the captured HP bar, skipping the middle where games typically overlay numeric
+    /// labels like "246/246" (whose white-ish text pixels would pull the average toward grey).
+    /// </summary>
+    private static Hsv SampleFullColor(byte[] bgra, int w, int h)
     {
-        // Average the middle 50% of the row to avoid bar edges.
+        int band = Math.Max(1, h / 5); // ~20% of height per band
         double sr = 0, sg = 0, sb = 0;
         int n = 0;
-        for (int x = width / 4; x < width * 3 / 4; x++)
+
+        void AddRow(int y)
         {
-            int i = (y * width + x) * 4;
-            sb += bgra[i];
-            sg += bgra[i + 1];
-            sr += bgra[i + 2];
-            n++;
+            int x0 = w / 4;
+            int x1 = w * 3 / 4;
+            for (int x = x0; x < x1; x++)
+            {
+                int i = (y * w + x) * 4;
+                sb += bgra[i];
+                sg += bgra[i + 1];
+                sr += bgra[i + 2];
+                n++;
+            }
         }
+
+        for (int y = 0; y < Math.Min(band, h); y++) AddRow(y);
+        for (int y = Math.Max(0, h - band); y < h; y++) AddRow(y);
+
         if (n == 0) return new Hsv(0, 0, 0);
         return Hsv.FromBgra(
             (byte)Math.Clamp(sb / n, 0, 255),
             (byte)Math.Clamp(sg / n, 0, 255),
             (byte)Math.Clamp(sr / n, 0, 255));
-    }
-
-    private static byte[] CropRows(byte[] bgra, int width, int y0, int rowCount)
-    {
-        var crop = new byte[width * rowCount * 4];
-        int rowBytes = width * 4;
-        Buffer.BlockCopy(bgra, y0 * rowBytes, crop, 0, rowCount * rowBytes);
-        return crop;
     }
 
     private void OnBack(object sender, RoutedEventArgs e)
@@ -203,16 +138,17 @@ public partial class CalibrationWizard : FluentWindow
         try
         {
             var role = RoleCombo.SelectedItem is Role r ? r : _initial.Role;
+            var nick = string.IsNullOrWhiteSpace(NickText.Text)
+                ? _initial.Nickname
+                : NickText.Text.Trim();
             Result = _initial with
             {
                 HpCalibration = _hpCal ?? _initial.HpCalibration,
-                NicknameRegion = _nickRegion ?? _initial.NicknameRegion,
-                Nickname = string.IsNullOrWhiteSpace(NickText.Text)
-                    ? _initial.Nickname
-                    : NickText.Text.Trim(),
+                NicknameRegion = null, // no longer captured — manual entry only
+                Nickname = nick,
                 Role = role
             };
-            Log.Info($"CalibrationWizard: saving result. HP calibrated={(_hpCal is not null)}, Nickname='{Result.Nickname}', Role={role}.");
+            Log.Info($"CalibrationWizard: saving result. HP calibrated={(_hpCal is not null)}, Nickname='{nick}', Role={role}.");
             DialogResult = true;
             Close();
         }

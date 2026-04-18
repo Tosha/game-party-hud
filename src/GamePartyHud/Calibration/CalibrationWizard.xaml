@@ -3,7 +3,7 @@
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
                  Title="Calibrate character"
-                 Width="520" Height="400"
+                 Width="520" Height="380"
                  WindowStartupLocation="CenterScreen"
                  WindowBackdropType="Mica"
                  ExtendsContentIntoTitleBar="True"
@@ -19,18 +19,19 @@
 
         <Grid Grid.Row="1" Margin="16,0,16,0">
             <TabControl x:Name="Steps">
-                <TabItem Header="1. Character">
+                <TabItem Header="1. HP bar">
                     <StackPanel Margin="8">
                         <TextBlock TextWrapping="Wrap" Margin="0,0,0,12">
-                            Make sure your character's HP is full. Click the button below
-                            and drag a box around your character name <Italic>and</Italic> your HP bar together —
-                            from just above the name to just below the HP bar.
-                            The app figures out which part is the name and which is the bar.
+                            Make sure your character's HP is full in the game. Then click
+                            the button below and drag a box around <Italic>only</Italic> the HP bar.
+                            Do <Italic>not</Italic> include the nickname, other bars (mana / stamina),
+                            or any frame — the tighter you match the red fill, the more accurate
+                            the reading will be.
                         </TextBlock>
                         <ui:Button x:Name="PickRegionButton"
                                    Appearance="Primary"
                                    Icon="Target24"
-                                   Content="Pick character region"
+                                   Content="Pick HP bar region"
                                    HorizontalAlignment="Left"
                                    Click="OnPickRegion"/>
                         <TextBlock x:Name="RegionStatus" Margin="0,12,0,0"
@@ -38,18 +39,19 @@
                                    TextWrapping="Wrap"/>
                     </StackPanel>
                 </TabItem>
-                <TabItem Header="2. Role">
+                <TabItem Header="2. Nickname">
+                    <StackPanel Margin="8">
+                        <TextBlock Text="Your character's name (this is what teammates will see on the HUD):"
+                                   TextWrapping="Wrap" Margin="0,0,0,6"/>
+                        <ui:TextBox x:Name="NickText" Width="300" HorizontalAlignment="Left"
+                                    PlaceholderText="Enter your character name"
+                                    MaxLength="32"/>
+                    </StackPanel>
+                </TabItem>
+                <TabItem Header="3. Role">
                     <StackPanel Margin="8">
                         <TextBlock Text="Pick your role:" Margin="0,0,0,8"/>
                         <ComboBox x:Name="RoleCombo" Width="220" HorizontalAlignment="Left"/>
-                    </StackPanel>
-                </TabItem>
-                <TabItem Header="3. Confirm">
-                    <StackPanel Margin="8">
-                        <TextBlock Text="Your nickname (edit if OCR got it wrong, or type it in if OCR didn't pick it up):"
-                                   TextWrapping="Wrap" Margin="0,0,0,6"/>
-                        <ui:TextBox x:Name="NickText" Width="300" HorizontalAlignment="Left"
-                                    PlaceholderText="Enter your character name"/>
                     </StackPanel>
                 </TabItem>
             </TabControl>
