@@ -49,10 +49,31 @@ public sealed class PartyOrchestrator : IAsyncDisposable
     private void OnPeerMessage(string fromPeerId, string text)
     {
         var msg = MessageJson.Decode(text);
-        if (msg is null) return;
+        if (msg is null)
+        {
+            Log.Warn($"PartyOrchestrator: dropped undecodable message from {fromPeerId[..Math.Min(8, fromPeerId.Length)]}… ({text.Length} bytes).");
+            return;
+        }
 
         // Trust-but-verify: a peer can only announce its own state.
-        if (msg is StateMessage s && s.PeerId != fromPeerId) return;
+        if (msg is StateMessage s && s.PeerId != fromPeerId)
+        {
+            Log.Warn($"PartyOrchestrator: spoofing attempt — message claimed peer_id={s.PeerId} but came from {fromPeerId}. Dropped.");
+            return;
+        }
+
+        switch (msg)
+        {
+            case StateMessage st:
+                Log.Info($"PartyOrchestrator: ← state from {fromPeerId[..Math.Min(8, fromPeerId.Length)]}… (nick='{st.Nick}', hp={st.Hp:F3}).");
+                break;
+            case ByeMessage:
+                Log.Info($"PartyOrchestrator: ← bye from {fromPeerId[..Math.Min(8, fromPeerId.Length)]}….");
+                break;
+            case KickMessage km:
+                Log.Info($"PartyOrchestrator: ← kick from {fromPeerId[..Math.Min(8, fromPeerId.Length)]}… targeting {km.Target[..Math.Min(8, km.Target.Length)]}….");
+                break;
+        }
 
         _state.Apply(msg, DateTimeOffset.UtcNow.ToUnixTimeSeconds());
     }

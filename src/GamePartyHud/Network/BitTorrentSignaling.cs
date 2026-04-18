@@ -62,6 +62,8 @@ public sealed class BitTorrentSignaling : ISignalingProvider
         _partyHash = PartyIdToInfohash(partyId);
         _selfPeer = selfPeerId;
 
+        Log.Info($"BitTorrentSignaling: joining party '{partyId}' (infohash={_partyHash[..8]}…, self={selfPeerId[..8]}…).");
+
         int opened = 0;
         for (int i = 0; i < _trackers.Length; i++)
         {
@@ -71,14 +73,15 @@ public sealed class BitTorrentSignaling : ISignalingProvider
                 await ws.ConnectAsync(new Uri(_trackers[i]), ct).ConfigureAwait(false);
                 _sockets[i] = ws;
                 opened++;
-                Log.Info($"BitTorrentSignaling: connected to {_trackers[i]}");
+                Log.Info($"BitTorrentSignaling: ✓ connected to {_trackers[i]}");
             }
             catch (Exception ex)
             {
-                Log.Warn($"BitTorrentSignaling: could not connect to {_trackers[i]} — {ex.Message}");
+                Log.Warn($"BitTorrentSignaling: ✗ could not connect to {_trackers[i]} — {ex.Message}");
             }
         }
         if (opened == 0) throw new InvalidOperationException("No BitTorrent trackers reachable.");
+        Log.Info($"BitTorrentSignaling: {opened}/{_trackers.Length} trackers available. Re-announce interval = {ReAnnounceInterval.TotalSeconds:F0}s.");
 
         _readLoopCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         for (int i = 0; i < _sockets.Length; i++)
@@ -170,11 +173,20 @@ public sealed class BitTorrentSignaling : ISignalingProvider
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
 
-            // Filter by our info_hash; some trackers send global/status messages we can ignore.
-            if (!root.TryGetProperty("info_hash", out var ih) || ih.GetString() != _partyHash) return;
+            // Messages with no info_hash are tracker-level pings/errors; log lightly so we can
+            // see them without being overwhelmed.
+            if (!root.TryGetProperty("info_hash", out var ih))
+            {
+                if (root.TryGetProperty("failure reason", out var fr))
+                {
+                    Log.Warn($"BitTorrentSignaling: tracker failure — {fr.GetString()}");
+                }
+                return;
+            }
+            if (ih.GetString() != _partyHash) return;
 
             var from = root.TryGetProperty("peer_id", out var pid) ? pid.GetString() ?? "" : "";
-            if (from == _selfPeer || from.Length == 0) return;
+            if (from == _selfPeer) return;
 
             var offerId = root.TryGetProperty("offer_id", out var oid) ? oid.GetString() ?? "" : "";
 
@@ -182,15 +194,24 @@ public sealed class BitTorrentSignaling : ISignalingProvider
             {
                 var sdp = offer.TryGetProperty("sdp", out var sdpEl) ? sdpEl.GetString() ?? "" : "";
                 if (sdp.Length == 0) return;
-                Log.Info($"BitTorrentSignaling: inbound offer from {from} (offer_id={offerId}).");
+                Log.Info($"BitTorrentSignaling: ← inbound offer from {ShortId(from)} (offer_id={offerId[..Math.Min(8, offerId.Length)]}…, {sdp.Length}B SDP).");
                 if (OnOffer is { } h) await h.Invoke(from, offerId, sdp).ConfigureAwait(false);
             }
             else if (root.TryGetProperty("answer", out var answer))
             {
                 var sdp = answer.TryGetProperty("sdp", out var sdpEl) ? sdpEl.GetString() ?? "" : "";
                 if (sdp.Length == 0) return;
-                Log.Info($"BitTorrentSignaling: inbound answer from {from} (offer_id={offerId}).");
+                Log.Info($"BitTorrentSignaling: ← inbound answer from {ShortId(from)} (offer_id={offerId[..Math.Min(8, offerId.Length)]}…, {sdp.Length}B SDP).");
                 if (OnAnswer is { } h) await h.Invoke(from, offerId, sdp).ConfigureAwait(false);
+            }
+            else
+            {
+                // Tracker acknowledgment / peer-count status message — valuable to confirm we're
+                // reaching the tracker even when no matches are happening.
+                var complete   = root.TryGetProperty("complete", out var c)   ? c.GetInt32().ToString() : "?";
+                var incomplete = root.TryGetProperty("incomplete", out var ic) ? ic.GetInt32().ToString() : "?";
+                var interval   = root.TryGetProperty("interval", out var iv)  ? iv.GetInt32().ToString() : "?";
+                Log.Info($"BitTorrentSignaling: tracker ack — complete={complete} incomplete={incomplete} interval={interval}s");
             }
         }
         catch (Exception ex)
@@ -198,6 +219,9 @@ public sealed class BitTorrentSignaling : ISignalingProvider
             Log.Warn($"BitTorrentSignaling: ignoring malformed tracker message — {ex.Message}");
         }
     }
+
+    private static string ShortId(string id) =>
+        id.Length > 8 ? id[..8] + "…" : id;
 
     public async Task SendAnswerAsync(string toPeerId, string offerId, string sdp, CancellationToken ct)
     {
