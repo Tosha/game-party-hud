@@ -95,12 +95,27 @@ public sealed class PeerNetwork : IAsyncDisposable
                 var offerId = Guid.NewGuid().ToString("N")[..20];
                 var pc = new RTCPeerConnection(new RTCConfiguration { iceServers = new List<RTCIceServer>(_iceServers) });
 
+                // Instrument pre-identification: we don't know the peer yet, so log
+                // everything under the offer_id. Once an answer promotes this PC,
+                // the same handlers keep working and log under the peer id instead.
+                string label = offerId;
+                pc.onicecandidate += c =>
+                {
+                    if (c is null) Log.Info($"PeerNetwork[{label}]: ICE gathering produced all candidates.");
+                    else Log.Info($"PeerNetwork[{label}]: ICE candidate — {SummarizeCandidate(c.candidate)}");
+                };
+                pc.oniceconnectionstatechange += s => Log.Info($"PeerNetwork[{label}]: ICE connection state -> {s}");
+                pc.onicegatheringstatechange += s => Log.Info($"PeerNetwork[{label}]: ICE gathering state -> {s}");
+                pc.onsignalingstatechange += () => Log.Info($"PeerNetwork[{label}]: signaling state -> {pc.signalingState}");
+
                 // Initiator creates the data channel.
                 var channel = await pc.createDataChannel("party").ConfigureAwait(false);
+                Log.Info($"PeerNetwork[{offerId}]: opened local data channel 'party' for pre-offer.");
 
                 // Prepare the offer.
                 var offer = pc.createOffer();
                 await pc.setLocalDescription(offer).ConfigureAwait(false);
+                Log.Info($"PeerNetwork[{offerId}]: pre-generated offer ready ({offer.sdp.Length} bytes of SDP).");
 
                 _pendingOffers[offerId] = new PendingOffer(offerId, pc, channel);
                 result.Add(new PreGeneratedOffer(offerId, offer.sdp));
@@ -110,8 +125,24 @@ public sealed class PeerNetwork : IAsyncDisposable
                 Log.Error("PeerNetwork: failed to pre-generate an offer; skipping.", ex);
             }
         }
-        Log.Info($"PeerNetwork: generated {result.Count}/{count} pre-offers.");
+        Log.Info($"PeerNetwork: generated {result.Count}/{count} pre-offers (pending pool size now {_pendingOffers.Count}).");
         return result;
+    }
+
+    private static string SummarizeCandidate(string? candidate)
+    {
+        // Candidate string looks like: "candidate:1 1 UDP 2113937151 192.168.1.50 50000 typ host"
+        // Extract the type + whether it's local/public for terseness.
+        if (string.IsNullOrEmpty(candidate)) return "<empty>";
+        var typIdx = candidate.IndexOf(" typ ", StringComparison.Ordinal);
+        if (typIdx >= 0)
+        {
+            var tail = candidate[(typIdx + 5)..];
+            var spaceIdx = tail.IndexOf(' ');
+            var typ = spaceIdx > 0 ? tail[..spaceIdx] : tail;
+            return $"typ={typ}";
+        }
+        return candidate.Length > 80 ? candidate[..80] + "…" : candidate;
     }
 
     private async Task HandleAnswerAsync(string fromPeerId, string offerId, string sdp)
@@ -167,13 +198,25 @@ public sealed class PeerNetwork : IAsyncDisposable
             Log.Info($"PeerNetwork: ignoring offer from {fromPeerId} — already connected.");
             return;
         }
+        Log.Info($"PeerNetwork[{fromPeerId}]: accepting inbound offer (offer_id={offerId}, {sdp.Length} bytes of SDP).");
 
         var pc = new RTCPeerConnection(new RTCConfiguration { iceServers = new List<RTCIceServer>(_iceServers) });
         var peer = new Peer(fromPeerId, pc);
 
+        // Instrument the new PC immediately so we can see ICE progress from here on.
+        pc.onicecandidate += c =>
+        {
+            if (c is null) Log.Info($"PeerNetwork[{fromPeerId}]: ICE gathering produced all candidates.");
+            else Log.Info($"PeerNetwork[{fromPeerId}]: ICE candidate — {SummarizeCandidate(c.candidate)}");
+        };
+        pc.oniceconnectionstatechange += s => Log.Info($"PeerNetwork[{fromPeerId}]: ICE connection state -> {s}");
+        pc.onicegatheringstatechange += s => Log.Info($"PeerNetwork[{fromPeerId}]: ICE gathering state -> {s}");
+        pc.onsignalingstatechange += () => Log.Info($"PeerNetwork[{fromPeerId}]: signaling state -> {pc.signalingState}");
+
         // As the responder we receive the data channel from the remote side.
         pc.ondatachannel += ch =>
         {
+            Log.Info($"PeerNetwork[{fromPeerId}]: remote opened data channel '{ch.label}' (state={ch.readyState}).");
             peer.Channel = ch;
             WirePeerChannel(peer);
         };
@@ -235,12 +278,17 @@ public sealed class PeerNetwork : IAsyncDisposable
     {
         peer.Connection.onconnectionstatechange += state =>
         {
-            Log.Info($"PeerNetwork: peer {peer.PeerId} state -> {state}.");
-            if (state == RTCPeerConnectionState.connected) OnPeerConnected?.Invoke(peer.PeerId);
+            Log.Info($"PeerNetwork[{peer.PeerId}]: connection state -> {state}");
+            if (state == RTCPeerConnectionState.connected)
+            {
+                Log.Info($"PeerNetwork[{peer.PeerId}]: 🟢 peer CONNECTED. Data channel state: {peer.Channel?.readyState}");
+                OnPeerConnected?.Invoke(peer.PeerId);
+            }
             if (state == RTCPeerConnectionState.disconnected
              || state == RTCPeerConnectionState.failed
              || state == RTCPeerConnectionState.closed)
             {
+                Log.Info($"PeerNetwork[{peer.PeerId}]: 🔴 peer terminated (state={state}).");
                 OnPeerDisconnected?.Invoke(peer.PeerId);
                 _peers.TryRemove(peer.PeerId, out _);
                 try { peer.Connection.Close("bye"); } catch { }
@@ -253,7 +301,14 @@ public sealed class PeerNetwork : IAsyncDisposable
     private void WirePeerChannel(Peer peer)
     {
         if (peer.Channel is null) return;
-        peer.Channel.onmessage += (_, _, data) =>
+        var channel = peer.Channel;
+        channel.onopen += () =>
+            Log.Info($"PeerNetwork[{peer.PeerId}]: 📡 data channel '{channel.label}' OPEN. Can now send/receive party messages.");
+        channel.onclose += () =>
+            Log.Info($"PeerNetwork[{peer.PeerId}]: data channel '{channel.label}' closed.");
+        channel.onerror += err =>
+            Log.Warn($"PeerNetwork[{peer.PeerId}]: data channel error — {err}");
+        channel.onmessage += (_, _, data) =>
         {
             var text = Encoding.UTF8.GetString(data);
             OnMessage?.Invoke(peer.PeerId, text);
