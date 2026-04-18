@@ -27,7 +27,6 @@ public partial class App : Application
     private ConfigStore? _store;
     private AppConfig _config = AppConfig.Defaults;
     private WindowsScreenCapture? _capture;
-    private IOcrService _ocr = new NullOcrService();
     private HudWindow? _hud;
     private PartyState? _state;
     private HudViewModelSync? _sync;
@@ -72,19 +71,6 @@ public partial class App : Application
 
         _capture = new WindowsScreenCapture();
         Log.Info("Screen capture: WindowsScreenCapture (GDI BitBlt).");
-
-        try
-        {
-            _ocr = new OcrService();
-            Log.Info("OCR available (Windows.Media.Ocr).");
-        }
-        catch (Exception ex)
-        {
-            Log.Warn($"OCR unavailable: {ex.Message}");
-            MessageBox.Show(
-                "OCR is not available on this system. Nickname will need to be typed manually during calibration.\n\n" + ex.Message,
-                "Game Party HUD", MessageBoxButton.OK, MessageBoxImage.Warning);
-        }
 
         _state = new PartyState();
         _hud = new HudWindow();
@@ -244,7 +230,7 @@ public partial class App : Application
     private void RunCalibration()
     {
         Log.Info("Opening calibration wizard.");
-        var wiz = new CalibrationWizard(_config, _capture!, _ocr);
+        var wiz = new CalibrationWizard(_config, _capture!);
         var ok = wiz.ShowDialog();
         Log.Info($"Calibration wizard closed (DialogResult={ok}).");
         if (ok == true && wiz.Result is { } updated)

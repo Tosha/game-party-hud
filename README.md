@@ -42,27 +42,28 @@ Double-click `GamePartyHud.exe`. It starts silent in the system tray (bottom-rig
 
 ### 3. Calibrate once
 
-You need to tell the app where on screen your character's name and HP bar are drawn. Do this once per game/resolution combination.
+You need to tell the app where on screen your HP bar is drawn, what colour it is when full, what your character's name is, and what role you play. Do this once per game/resolution combination.
 
 1. Make sure you're **in-game with HP full**.
 2. Right-click the tray icon → **Calibrate character…**
-3. In the wizard, click **Pick character region**. Your screen dims; drag a single rectangle that covers:
-   - Your character name (top)
-   - Your HP bar (directly below the name)
-   - Not other bars (mana, shield, etc.) — just name + HP bar.
+3. **Step 1 — HP bar.** Click **Pick HP bar region**. Your screen dims; drag a tight rectangle around **only the HP bar**. Do **not** include the character name, other bars (mana, stamina, shield…), or any frame around the bar.
 
    ```
-    ┌─────────────────────┐
-    │     YourName        │  ← name (top of selection)
-    │   ████████░░░░      │  ← HP bar
-    └─────────────────────┘  ← bottom of selection, just below the bar
+    ┌────────────────────┐
+    │  ████████░░░░       │   ← HP bar, fill visible
+    └────────────────────┘   ← top and bottom edges hug the bar
    ```
 
-4. The app auto-detects which part is the name and which is the HP bar. It shows you the colour it detected and OCR's the nickname. **Double-check** the nickname — if OCR misread it, you'll fix it in step 4 of the wizard.
-5. Pick your **Role** (Tank / Healer / Support / Melee DPS / Ranged DPS / Utility).
-6. Confirm the nickname. **Save**.
+   The tighter your box matches the coloured fill, the more accurate the reading. If the bar has numeric text like `246/246` overlaid on it, include the text — the app samples colour from the top and bottom of the bar where text doesn't reach.
+
+4. **Step 2 — Nickname.** Type your character's name as you want it to appear on teammates' HUDs.
+5. **Step 3 — Role.** Pick your role (Tank / Healer / Support / Melee DPS / Ranged DPS / Utility). Click **Save**.
 
 The config is persisted at `%AppData%\GamePartyHud\config.json`, so you only do this once.
+
+### Re-calibrate when things change
+
+If the app reads your HP incorrectly (bar jumps around, or shows empty when it shouldn't), right-click the tray → **Save test capture…** — it saves a PNG of what the app is seeing plus a `.txt` diagnostic next to it, both in `%AppData%\GamePartyHud\`. Open the PNG; if it doesn't look like a clean HP bar, re-calibrate with a tighter selection. If it does look clean but HP still reads wrong, attach both files to a bug report.
 
 ### 4. Play together
 
