@@ -25,30 +25,21 @@ public partial class CalibrationWizard : FluentWindow
 
         RoleCombo.ItemsSource = Enum.GetValues<Role>();
         RoleCombo.SelectedItem = initial.Role;
-        NickText.Text = initial.Nickname;
+        NickText.Text = initial.Nickname == AppConfig.Defaults.Nickname ? "" : initial.Nickname;
 
         if (initial.HpCalibration is { } cal)
         {
             _hpCal = cal;
             RegionStatus.Text =
-                $"Loaded saved HP bar region: {cal.Region.W}\u00D7{cal.Region.H} at ({cal.Region.X}, {cal.Region.Y}). " +
+                $"Saved region {cal.Region.W}\u00D7{cal.Region.H} at ({cal.Region.X}, {cal.Region.Y}). " +
                 $"Full-HP HSV=(H={cal.FullColor.H:F0}\u00B0, S={cal.FullColor.S:F2}, V={cal.FullColor.V:F2}).";
         }
-
-        Steps.SelectionChanged += (_, _) => UpdateButtons();
-        UpdateButtons();
-    }
-
-    private void UpdateButtons()
-    {
-        BackBtn.IsEnabled = Steps.SelectedIndex > 0;
-        NextBtn.Content = Steps.SelectedIndex == 2 ? "Save" : "Next";
     }
 
     private async void OnPickRegion(object sender, RoutedEventArgs e)
     {
         Log.Info("CalibrationWizard: Pick-region button clicked.");
-        // Hide via opacity rather than Hide() — Hide() on a ShowDialog'd window exits the modal loop.
+        // Opacity=0 (not Hide()) — Hide() on a ShowDialog'd window exits the modal loop.
         Opacity = 0;
         try
         {
@@ -63,15 +54,13 @@ public partial class CalibrationWizard : FluentWindow
             Log.Info($"CalibrationWizard: region selected {region.W}x{region.H} at ({region.X},{region.Y}).");
 
             var bgra = await _capture.CaptureBgraAsync(region).ConfigureAwait(true);
-            Log.Info($"CalibrationWizard: captured {bgra.Length} bytes of BGRA pixels.");
-
             var fullColor = SampleFullColor(bgra, region.W, region.H);
             _hpCal = new HpCalibration(region, fullColor, HsvTolerance.Default, FillDirection.LTR);
 
             RegionStatus.Foreground = System.Windows.Media.Brushes.DarkGreen;
             RegionStatus.Text =
                 $"Captured {region.W}\u00D7{region.H} at ({region.X}, {region.Y}). " +
-                $"Full-HP color: H={fullColor.H:F0}\u00B0, S={fullColor.S:F2}, V={fullColor.V:F2}.";
+                $"Full-HP: H={fullColor.H:F0}\u00B0, S={fullColor.S:F2}, V={fullColor.V:F2}.";
             Log.Info($"CalibrationWizard: HP calibrated. Full-HP HSV=({fullColor.H:F1}, {fullColor.S:F3}, {fullColor.V:F3}).");
         }
         catch (Exception ex)
@@ -88,13 +77,12 @@ public partial class CalibrationWizard : FluentWindow
     }
 
     /// <summary>
-    /// Sample the full-HP color by averaging pixels from the top band and the bottom band
-    /// of the captured HP bar, skipping the middle where games typically overlay numeric
-    /// labels like "246/246" (whose white-ish text pixels would pull the average toward grey).
+    /// Average pixels from the top and bottom bands of the HP bar, skipping the middle
+    /// where games typically overlay numeric labels like "246/246".
     /// </summary>
     private static Hsv SampleFullColor(byte[] bgra, int w, int h)
     {
-        int band = Math.Max(1, h / 5); // ~20% of height per band
+        int band = Math.Max(1, h / 5);
         double sr = 0, sg = 0, sb = 0;
         int n = 0;
 
@@ -122,33 +110,49 @@ public partial class CalibrationWizard : FluentWindow
             (byte)Math.Clamp(sr / n, 0, 255));
     }
 
-    private void OnBack(object sender, RoutedEventArgs e)
+    private void OnCancel(object sender, RoutedEventArgs e)
     {
-        if (Steps.SelectedIndex > 0) Steps.SelectedIndex--;
+        DialogResult = false;
+        Close();
     }
 
-    private void OnNext(object sender, RoutedEventArgs e)
+    private void OnSave(object sender, RoutedEventArgs e)
     {
-        if (Steps.SelectedIndex < 2)
-        {
-            Steps.SelectedIndex++;
-            return;
-        }
-
         try
         {
+            var effectiveHpCal = _hpCal ?? _initial.HpCalibration;
+            if (effectiveHpCal is null)
+            {
+                System.Windows.MessageBox.Show(
+                    "Please pick your HP bar region first.",
+                    "Game Party HUD",
+                    System.Windows.MessageBoxButton.OK,
+                    System.Windows.MessageBoxImage.Information);
+                return;
+            }
+
+            var nick = NickText.Text?.Trim() ?? "";
+            if (string.IsNullOrWhiteSpace(nick))
+            {
+                System.Windows.MessageBox.Show(
+                    "Please enter a nickname.",
+                    "Game Party HUD",
+                    System.Windows.MessageBoxButton.OK,
+                    System.Windows.MessageBoxImage.Information);
+                NickText.Focus();
+                return;
+            }
+
             var role = RoleCombo.SelectedItem is Role r ? r : _initial.Role;
-            var nick = string.IsNullOrWhiteSpace(NickText.Text)
-                ? _initial.Nickname
-                : NickText.Text.Trim();
+
             Result = _initial with
             {
-                HpCalibration = _hpCal ?? _initial.HpCalibration,
-                NicknameRegion = null, // no longer captured — manual entry only
+                HpCalibration = effectiveHpCal,
+                NicknameRegion = null,
                 Nickname = nick,
                 Role = role
             };
-            Log.Info($"CalibrationWizard: saving result. HP calibrated={(_hpCal is not null)}, Nickname='{nick}', Role={role}.");
+            Log.Info($"CalibrationWizard: saving result. Nickname='{nick}', Role={role}.");
             DialogResult = true;
             Close();
         }

@@ -95,7 +95,67 @@ public partial class App : Application
 
         if (_config.LastPartyId is { Length: > 0 } last) _tray.SetPartyId(last);
 
-        Log.Info("Tray icon installed. Startup complete.");
+        Log.Info("Tray icon installed. Starting the onboarding journey.");
+
+        // Defer the startup journey until the message pump is running so ShowDialog works.
+        Dispatcher.BeginInvoke(new Action(async () =>
+        {
+            try { await RunStartupJourneyAsync(); }
+            catch (Exception ex) { Log.Error("Startup journey crashed.", ex); }
+        }), System.Windows.Threading.DispatcherPriority.Background);
+    }
+
+    /// <summary>
+    /// Walks the user through the initial setup UX at app launch:
+    /// 1. Setup (HP region + nickname + role on one screen). Cancel = bail out, stay in tray.
+    /// 2. Party choice — Create / Join / Skip.
+    /// 3. Create → show party ID + copy button. Join → prompt for ID and connect.
+    /// </summary>
+    private async Task RunStartupJourneyAsync()
+    {
+        // Step 1 — setup. Single-page form; always shown.
+        var setup = new CalibrationWizard(_config, _capture!);
+        var setupOk = setup.ShowDialog();
+        if (setupOk != true || setup.Result is null)
+        {
+            Log.Info("Startup journey: setup cancelled. HUD + tray remain active; no party.");
+            return;
+        }
+        _config = setup.Result;
+        _store!.Save(_config);
+
+        // Step 2 — party choice.
+        var choice = new PartyChoiceDialog();
+        if (choice.ShowDialog() != true)
+        {
+            Log.Info("Startup journey: party choice dismissed. Staying in tray with no party.");
+            return;
+        }
+
+        switch (choice.Choice)
+        {
+            case PartyChoice.Create:
+                var newId = PartyIdGenerator.Generate();
+                await JoinOrCreateAsync(newId);
+                if (_currentPartyId is { Length: > 0 } created)
+                {
+                    var dlg = new PartyCreatedDialog(created);
+                    dlg.ShowDialog();
+                }
+                break;
+
+            case PartyChoice.Join:
+                var joinDlg = new JoinPartyDialog(_config.LastPartyId);
+                if (joinDlg.ShowDialog() == true && !string.IsNullOrWhiteSpace(joinDlg.PartyId))
+                {
+                    await JoinOrCreateAsync(joinDlg.PartyId!);
+                }
+                break;
+
+            case PartyChoice.Skip:
+                Log.Info("Startup journey: user chose to skip party setup.");
+                break;
+        }
     }
 
     // ---------- global exception handlers ----------

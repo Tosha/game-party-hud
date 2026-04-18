@@ -2,8 +2,8 @@
                  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-                 Title="Calibrate character"
-                 Width="520" Height="380"
+                 Title="Game Party HUD — Setup"
+                 Width="560" Height="520"
                  WindowStartupLocation="CenterScreen"
                  WindowBackdropType="Mica"
                  ExtendsContentIntoTitleBar="True"
@@ -15,55 +15,53 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <ui:TitleBar Grid.Row="0" Title="Calibrate character"/>
+        <ui:TitleBar Grid.Row="0" Title="Game Party HUD — Setup"/>
 
-        <Grid Grid.Row="1" Margin="16,0,16,0">
-            <TabControl x:Name="Steps">
-                <TabItem Header="1. HP bar">
-                    <StackPanel Margin="8">
-                        <TextBlock TextWrapping="Wrap" Margin="0,0,0,12">
-                            Make sure your character's HP is full in the game. Then click
-                            the button below and drag a box around <Italic>only</Italic> the HP bar.
-                            Do <Italic>not</Italic> include the nickname, other bars (mana / stamina),
-                            or any frame — the tighter you match the red fill, the more accurate
-                            the reading will be.
-                        </TextBlock>
-                        <ui:Button x:Name="PickRegionButton"
-                                   Appearance="Primary"
-                                   Icon="Target24"
-                                   Content="Pick HP bar region"
-                                   HorizontalAlignment="Left"
-                                   Click="OnPickRegion"/>
-                        <TextBlock x:Name="RegionStatus" Margin="0,12,0,0"
-                                   Foreground="{DynamicResource SystemAccentColorSecondaryBrush}"
-                                   TextWrapping="Wrap"/>
-                    </StackPanel>
-                </TabItem>
-                <TabItem Header="2. Nickname">
-                    <StackPanel Margin="8">
-                        <TextBlock Text="Your character's name (this is what teammates will see on the HUD):"
-                                   TextWrapping="Wrap" Margin="0,0,0,6"/>
-                        <ui:TextBox x:Name="NickText" Width="300" HorizontalAlignment="Left"
-                                    PlaceholderText="Enter your character name"
-                                    MaxLength="32"/>
-                    </StackPanel>
-                </TabItem>
-                <TabItem Header="3. Role">
-                    <StackPanel Margin="8">
-                        <TextBlock Text="Pick your role:" Margin="0,0,0,8"/>
-                        <ComboBox x:Name="RoleCombo" Width="220" HorizontalAlignment="Left"/>
-                    </StackPanel>
-                </TabItem>
-            </TabControl>
-        </Grid>
+        <StackPanel Grid.Row="1" Margin="24,0,24,0">
+            <!-- HP bar section -->
+            <TextBlock FontSize="14" FontWeight="SemiBold" Text="HP bar region"/>
+            <TextBlock TextWrapping="Wrap" Opacity="0.8" Margin="0,2,0,8">
+                Make sure your HP is full in-game. Click below and drag a tight box around your HP bar only — no nickname, no other bars, no frame.
+            </TextBlock>
+            <StackPanel Orientation="Horizontal">
+                <ui:Button x:Name="PickRegionButton"
+                           Appearance="Primary"
+                           Icon="Target24"
+                           Content="Pick HP bar region"
+                           Click="OnPickRegion"/>
+                <TextBlock x:Name="RegionStatus" Margin="12,0,0,0"
+                           VerticalAlignment="Center"
+                           TextWrapping="Wrap"
+                           MaxWidth="340"
+                           Foreground="{DynamicResource SystemAccentColorSecondaryBrush}"/>
+            </StackPanel>
+
+            <!-- Nickname section -->
+            <TextBlock FontSize="14" FontWeight="SemiBold" Text="Nickname" Margin="0,22,0,0"/>
+            <TextBlock TextWrapping="Wrap" Opacity="0.8" Margin="0,2,0,6">
+                What your teammates will see on the HUD.
+            </TextBlock>
+            <ui:TextBox x:Name="NickText" MaxLength="32"
+                        PlaceholderText="Your character name" HorizontalAlignment="Stretch"/>
+
+            <!-- Role section -->
+            <TextBlock FontSize="14" FontWeight="SemiBold" Text="Role" Margin="0,22,0,0"/>
+            <TextBlock TextWrapping="Wrap" Opacity="0.8" Margin="0,2,0,6">
+                Shown as a small icon next to your name.
+            </TextBlock>
+            <ComboBox x:Name="RoleCombo" Width="240" HorizontalAlignment="Left"/>
+        </StackPanel>
 
         <StackPanel Grid.Row="2" Orientation="Horizontal"
                     HorizontalAlignment="Right"
-                    Margin="16,8,16,16">
-            <ui:Button x:Name="BackBtn" Content="Back" Icon="ArrowLeft24"
-                       Appearance="Secondary" Margin="0,0,8,0" Click="OnBack"/>
-            <ui:Button x:Name="NextBtn" Content="Next" Icon="ArrowRight24"
-                       Appearance="Primary" Click="OnNext"/>
+                    Margin="24,8,24,16">
+            <ui:Button Content="Cancel"
+                       Appearance="Secondary" Margin="0,0,8,0"
+                       IsCancel="True" Click="OnCancel"/>
+            <ui:Button Content="Continue"
+                       Icon="ArrowRight24"
+                       Appearance="Primary" IsDefault="True"
+                       Click="OnSave"/>
         </StackPanel>
     </Grid>
 </ui:FluentWindow>
