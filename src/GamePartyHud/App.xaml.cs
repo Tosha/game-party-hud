@@ -284,9 +284,7 @@ public partial class App : Application
         }
 
         var selfPeer = Guid.NewGuid().ToString("N");
-        var primary = new BitTorrentSignaling();
-        var fallback = new PeerJsSignaling();
-        var signaling = new CompositeSignaling(primary, fallback);
+        var signaling = new BitTorrentSignaling();
 
         var turn = _config.CustomTurnUrl is { Length: > 0 } url
             ? new PeerNetwork.TurnCreds(url, _config.CustomTurnUsername, _config.CustomTurnCredential)
