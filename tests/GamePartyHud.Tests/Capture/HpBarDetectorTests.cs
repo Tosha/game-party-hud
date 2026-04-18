@@ -85,6 +85,31 @@ public class HpBarDetectorTests
     }
 
     [Fact]
+    public void FindTopBar_PicksTallestRun_NotTheFirst()
+    {
+        // Reproduces the in-the-field bug where the game UI had a ~5px
+        // red decorative strip between the nickname and the real HP bar.
+        // The first-match detector latched onto that strip (5 rows ≥
+        // MinBarRows=3) and reported it as the HP bar, so the stored
+        // region captured pixels that were NOT the actual bar.
+        //
+        //   rows  0-10  bg         (text area)
+        //   rows 11-15  red, 5 rows  (decoration — should be skipped)
+        //   rows 16-19  bg         (gap)
+        //   rows 20-39  red, 20 rows (the real HP bar — should be picked)
+        var buf = new byte[60 * 40 * 4];
+        Fill(buf, 60, y: 0,  h: 11, (20, 20, 20));
+        Fill(buf, 60, y: 11, h: 5,  (0, 0, 220));   // decoration
+        Fill(buf, 60, y: 16, h: 4,  (20, 20, 20));
+        Fill(buf, 60, y: 20, h: 20, (0, 0, 220));   // real HP bar
+
+        var result = HpBarDetector.FindTopBar(buf, 60, 40);
+        Assert.NotNull(result);
+        Assert.Equal(20, result!.Value.YStart);
+        Assert.Equal(39, result.Value.YEnd);
+    }
+
+    [Fact]
     public void FindTopBar_ShortSpuriousBand_IsIgnored()
     {
         // 2px coloured line (e.g. separator) followed by a proper 6px bar. Must pick the bar.
