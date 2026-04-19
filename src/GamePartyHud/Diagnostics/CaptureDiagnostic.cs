@@ -58,7 +58,9 @@ public static class CaptureDiagnostic
         try { SaveBgraAsPng(bgra, w, h, pngPath); }
         catch (Exception ex) { Log.Error($"CaptureDiagnostic ({reason}): failed to write PNG.", ex); return null; }
 
-        // Per-column match counts.
+        // Per-column match counts, using the SAME classifier the analyzer uses
+        // (saturated red, not calibrated fullColor). Keeping them aligned means the
+        // match map in this report faithfully predicts what the analyzer will see.
         var matchCount = new int[w];
         for (int x = 0; x < w; x++)
         {
@@ -66,7 +68,7 @@ public static class CaptureDiagnostic
             {
                 int idx = (y * w + x) * 4;
                 var hsv = Hsv.FromBgra(bgra[idx], bgra[idx + 1], bgra[idx + 2]);
-                if (cal.Tolerance.Matches(cal.FullColor, hsv)) matchCount[x]++;
+                if (HpBarAnalyzer.IsFilledPixel(hsv)) matchCount[x]++;
             }
         }
         int minMatches = Math.Max(2, h / 5);
@@ -104,11 +106,8 @@ public static class CaptureDiagnostic
             sw.WriteLine($"Game Party HUD — capture diagnostic @ {stamp}  (reason={reason})");
             sw.WriteLine();
             sw.WriteLine($"Region:        {w}x{h} at screen ({cal.Region.X},{cal.Region.Y})");
-            sw.WriteLine($"Calibrated:    H={cal.FullColor.H:F1}°, S={cal.FullColor.S:F3}, V={cal.FullColor.V:F3}");
-            sw.WriteLine($"Tolerance:     ±{cal.Tolerance.H}° hue, ±{cal.Tolerance.S:F2} sat, ±{cal.Tolerance.V:F2} val");
-            sw.WriteLine($"               accept H: [{(cal.FullColor.H - cal.Tolerance.H + 360f) % 360f:F0}°, {(cal.FullColor.H + cal.Tolerance.H) % 360f:F0}°]  " +
-                         $"S: [{Math.Max(0, cal.FullColor.S - cal.Tolerance.S):F2}, {Math.Min(1, cal.FullColor.S + cal.Tolerance.S):F2}]  " +
-                         $"V: [{Math.Max(0, cal.FullColor.V - cal.Tolerance.V):F2}, {Math.Min(1, cal.FullColor.V + cal.Tolerance.V):F2}]");
+            sw.WriteLine($"Classifier:    saturated red  (S >= {HpBarAnalyzer.FilledMinSaturation:F2}, V >= {HpBarAnalyzer.FilledMinValue:F2}, hue within ±{HpBarAnalyzer.FilledHueHalfWindow:F0}° of 0°)");
+            sw.WriteLine($"Legacy cal:    H={cal.FullColor.H:F1}°, S={cal.FullColor.S:F3}, V={cal.FullColor.V:F3}  (kept for compat; analyzer ignores this now)");
             sw.WriteLine($"Fill dir:      {cal.Direction}");
             sw.WriteLine();
             sw.WriteLine($"Analyzer HP:   {pct:F3}   (1.000 = full in-game HP)");

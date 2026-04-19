@@ -144,9 +144,9 @@ public sealed class PartyOrchestrator : IAsyncDisposable
         int w = cal.Region.W;
         int h = cal.Region.H;
 
-        // Per-column match count against the calibrated fullColor — same criterion the
-        // analyzer uses. This lets us see at-a-glance whether the capture pixels even
-        // resemble the calibration.
+        // Per-column match count using the SAME classifier the analyzer uses
+        // (saturated red, calibration-free). This lets us see at-a-glance whether the
+        // capture pixels look like a red bar at all.
         int minMatches = Math.Max(2, h / 5);
         int pass = 0, partial = 0, empty = 0;
         for (int x = 0; x < w; x++)
@@ -156,24 +156,22 @@ public sealed class PartyOrchestrator : IAsyncDisposable
             {
                 int idx = (y * w + x) * 4;
                 var hsv = Hsv.FromBgra(bgra[idx], bgra[idx + 1], bgra[idx + 2]);
-                if (cal.Tolerance.Matches(cal.FullColor, hsv)) matches++;
+                if (HpBarAnalyzer.IsFilledPixel(hsv)) matches++;
             }
             if (matches == 0) empty++;
             else if (matches < minMatches) partial++;
             else pass++;
         }
 
-        // Sample average HSV of the middle-third (the bit most representative of
-        // the current fill colour in-game) so we can see if the colour drifted from
-        // the calibrated reference.
+        // Sample average HSV of the middle-third so we can see if the capture actually
+        // contains a red bar (good) or something else (sign of a region-selection issue).
         var midAvg = CaptureDiagnostic.AverageHsv(bgra, w, h, w / 3, 2 * w / 3);
 
         Log.Info(
             $"PartyOrchestrator tick#{_tickCounter}: raw={raw:F3} smoothed={smoothed:F3} " +
             $"region={w}x{h}@({cal.Region.X},{cal.Region.Y}) " +
             $"cols {pass}/{partial}/{empty} pass/partial/empty; " +
-            $"mid-HSV H={midAvg.H:F0}° S={midAvg.S:F2} V={midAvg.V:F2}; " +
-            $"cal-HSV H={cal.FullColor.H:F0}° S={cal.FullColor.S:F2} V={cal.FullColor.V:F2}");
+            $"mid-HSV H={midAvg.H:F0}° S={midAvg.S:F2} V={midAvg.V:F2}");
     }
 
     private async Task MaybeAutoForensicAsync(float raw)

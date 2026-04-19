@@ -62,6 +62,27 @@ public class HpBarAnalyzerTests
     }
 
     [Fact]
+    public void Analyze_IsIndependentOfCalibratedFullColor()
+    {
+        // Regression test for the field bug where the calibration wizard sampled the
+        // dark frame rows above/below the bar (user over-selected the region by 2 px
+        // on each side) and stored a near-black fullColor. Before the fix, the analyzer
+        // matched the frame and reported ~3% for a 100%-filled bar. After, the
+        // classifier looks only at "is this a saturated red pixel?" and ignores the
+        // calibrated reference entirely, so a bogus fullColor can't break readings.
+        var buf = Bar(1.0f); // fully red bar
+        var bogusDarkCalibration = new HpCalibration(
+            Region: new HpRegion(0, 0, 0, 200, 10),
+            FullColor: new Hsv(15f, 0.098f, 0.161f),   // near-black, exactly like the bug report
+            Tolerance: HsvTolerance.Default,
+            Direction: FillDirection.LTR);
+
+        var pct = new HpBarAnalyzer().Analyze(buf, 200, 10, bogusDarkCalibration);
+
+        Assert.InRange(pct, 0.98f, 1.0f);
+    }
+
+    [Fact]
     public void Analyze_FullBarWithTextOverlay_ReturnsFull()
     {
         // Reproduces the "Throne and Liberty HP bar with '246/246' text in the
