@@ -90,7 +90,6 @@ public partial class App : Application
         _tray.JoinPartyRequested      += PromptAndJoinSafe;
         _tray.CopyPartyIdRequested    += CopyPartyId;
         _tray.OpenLogFolderRequested  += OpenLogFolder;
-        _tray.SaveTestCaptureRequested += SaveTestCaptureSafe;
         _tray.QuitRequested           += () => _ = QuitAsync();
 
         if (_config.LastPartyId is { Length: > 0 } last) _tray.SetPartyId(last);
@@ -230,21 +229,6 @@ public partial class App : Application
         {
             try { Clipboard.SetText(id); Log.Info($"Copied party ID '{id}' to clipboard."); }
             catch (Exception ex) { Log.Error("Copy party ID failed.", ex); }
-        }
-    }
-
-    private async void SaveTestCaptureSafe()
-    {
-        try
-        {
-            var summary = await CaptureDiagnostic.RunAsync(_config, _capture!);
-            MessageBox.Show(summary, "Game Party HUD — Test Capture",
-                MessageBoxButton.OK, MessageBoxImage.Information);
-        }
-        catch (Exception ex)
-        {
-            Log.Error("SaveTestCapture failed.", ex);
-            ShowErrorDialog(ex);
         }
     }
 

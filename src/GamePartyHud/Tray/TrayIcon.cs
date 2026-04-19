@@ -23,7 +23,6 @@ public sealed class TrayIcon : IDisposable
     public event Action? ChangeNicknameRequested;
     public event Action? ChangeRoleRequested;
     public event Action? OpenLogFolderRequested;
-    public event Action? SaveTestCaptureRequested;
     public event Action? QuitRequested;
 
     public TrayIcon()
@@ -59,7 +58,6 @@ public sealed class TrayIcon : IDisposable
         AddItem(m, "Join party\u2026",          () => JoinPartyRequested?.Invoke());
         AddItem(m, "Copy party ID",             () => CopyPartyIdRequested?.Invoke());
         m.Items.Add(new ToolStripSeparator());
-        AddItem(m, "Save test capture\u2026",   () => SaveTestCaptureRequested?.Invoke());
         AddItem(m, "Open log folder",           () => OpenLogFolderRequested?.Invoke());
         AddItem(m, "Quit",                      () => QuitRequested?.Invoke());
         return m;
