@@ -83,9 +83,7 @@ public partial class App : Application
         _hud.KickRequested += OnKickRequested;
 
         _tray = new TrayIcon();
-        _tray.CalibrateRequested      += RunCalibrationSafe;
-        _tray.ChangeNicknameRequested += RunChangeNicknameSafe;
-        _tray.ChangeRoleRequested     += RunChangeRoleSafe;
+        _tray.PartySettingsRequested  += RunCalibrationSafe;
         _tray.CreatePartyRequested    += () => _ = JoinOrCreateSafeAsync(PartyIdGenerator.Generate());
         _tray.JoinPartyRequested      += PromptAndJoinSafe;
         _tray.CopyPartyIdRequested    += CopyPartyId;
@@ -199,18 +197,6 @@ public partial class App : Application
         catch (Exception ex) { Log.Error("Calibration flow crashed.", ex); ShowErrorDialog(ex); }
     }
 
-    private void RunChangeNicknameSafe()
-    {
-        try { RunChangeNickname(); }
-        catch (Exception ex) { Log.Error("Change-nickname flow crashed.", ex); ShowErrorDialog(ex); }
-    }
-
-    private void RunChangeRoleSafe()
-    {
-        try { RunChangeRole(); }
-        catch (Exception ex) { Log.Error("Change-role flow crashed.", ex); ShowErrorDialog(ex); }
-    }
-
     private async Task JoinOrCreateSafeAsync(string partyId)
     {
         try { await JoinOrCreateAsync(partyId); }
@@ -282,28 +268,6 @@ public partial class App : Application
             _config = updated;
             _store!.Save(_config);
             Log.Info($"Config saved. HP region={_config.HpCalibration?.Region}, nickname='{_config.Nickname}', role={_config.Role}.");
-        }
-    }
-
-    private void RunChangeNickname()
-    {
-        var dlg = new RenameDialog(_config.Nickname);
-        if (dlg.ShowDialog() == true && dlg.Value is { Length: > 0 } v)
-        {
-            _config = _config with { Nickname = v };
-            _store!.Save(_config);
-            Log.Info($"Nickname changed to '{v}'.");
-        }
-    }
-
-    private void RunChangeRole()
-    {
-        var dlg = new RolePickerDialog(_config.Role);
-        if (dlg.ShowDialog() == true && dlg.Value is { } r)
-        {
-            _config = _config with { Role = r };
-            _store!.Save(_config);
-            Log.Info($"Role changed to {r}.");
         }
     }
 

@@ -16,12 +16,10 @@ public sealed class TrayIcon : IDisposable
 
     private readonly NotifyIcon _icon;
 
-    public event Action? CalibrateRequested;
+    public event Action? PartySettingsRequested;
     public event Action? CreatePartyRequested;
     public event Action? JoinPartyRequested;
     public event Action? CopyPartyIdRequested;
-    public event Action? ChangeNicknameRequested;
-    public event Action? ChangeRoleRequested;
     public event Action? OpenLogFolderRequested;
     public event Action? QuitRequested;
 
@@ -50,9 +48,7 @@ public sealed class TrayIcon : IDisposable
             ForeColor = MenuForeground,
             ShowImageMargin = false,
         };
-        AddItem(m, "Calibrate character\u2026", () => CalibrateRequested?.Invoke());
-        AddItem(m, "Change nickname\u2026",     () => ChangeNicknameRequested?.Invoke());
-        AddItem(m, "Change role\u2026",         () => ChangeRoleRequested?.Invoke());
+        AddItem(m, "Party settings\u2026",      () => PartySettingsRequested?.Invoke());
         m.Items.Add(new ToolStripSeparator());
         AddItem(m, "Create party",              () => CreatePartyRequested?.Invoke());
         AddItem(m, "Join party\u2026",          () => JoinPartyRequested?.Invoke());

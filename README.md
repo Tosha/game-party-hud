@@ -59,7 +59,7 @@ Double-click `GamePartyHud.exe`. It starts silent in the system tray (bottom-rig
 You need to tell the app where on screen your HP bar is drawn, what colour it is when full, what your character's name is, and what role you play. Do this once per game/resolution combination.
 
 1. Make sure you're **in-game with HP full**.
-2. Right-click the tray icon → **Calibrate character…**
+2. Right-click the tray icon → **Party settings…**
 3. **Step 1 — HP bar.** Click **Pick HP bar region**. Your screen dims; drag a tight rectangle around **only the HP bar**. Do **not** include the character name, other bars (mana, stamina, shield…), or any frame around the bar.
 
    ```
@@ -77,7 +77,7 @@ The config is persisted at `%AppData%\GamePartyHud\config.json`, so you only do 
 
 ### Re-calibrate when things change
 
-If the app reads your HP incorrectly (bar jumps around, or shows empty when it shouldn't), re-run **Calibrate character…** from the tray with a tighter selection around the coloured fill. If it still reads wrong, grab `%AppData%\GamePartyHud\app.log` and attach it to a bug report.
+If the app reads your HP incorrectly (bar jumps around, or shows empty when it shouldn't), re-open **Party settings…** from the tray and re-pick the HP bar region with a tighter selection around the coloured fill. If it still reads wrong, grab `%AppData%\GamePartyHud\app.log` and attach it to a bug report.
 
 ### 4. Play together
 
@@ -97,8 +97,7 @@ The HUD starts **locked** — it's purely visual, your mouse clicks pass straigh
 ### 6. Optional tweaks
 
 The tray menu also has:
-- **Change nickname…** — edit your displayed name without re-running calibration.
-- **Change role…** — swap your role icon.
+- **Party settings…** — re-open the setup screen to tweak HP region, nickname, or role.
 - **Copy party ID** — handy for re-sharing mid-session.
 - **Quit** — closes cleanly; party members see you leave immediately.
 
