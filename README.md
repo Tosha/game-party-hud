@@ -1,6 +1,20 @@
 # Game Party HUD
 
+[![CI](https://github.com/Tosha/game-party-hud/actions/workflows/ci.yml/badge.svg)](https://github.com/Tosha/game-party-hud/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/Tosha/game-party-hud?display_name=tag&sort=semver&label=release)](https://github.com/Tosha/game-party-hud/releases/latest)
+[![License: MIT](https://img.shields.io/github/license/Tosha/game-party-hud?color=blue)](LICENSE)
+[![Downloads](https://img.shields.io/github/downloads/Tosha/game-party-hud/total?color=brightgreen)](https://github.com/Tosha/game-party-hud/releases)
+[![Platform](https://img.shields.io/badge/platform-Windows%2010%2B-0078D6?logo=windows&logoColor=white)](#)
+
 A tiny, free Windows overlay that shows your party's HP bars on top of any game that doesn't have a built-in party UI — fully peer-to-peer, no accounts, no servers to pay for, no launchers to install.
+
+<p align="center">
+  <a href="https://github.com/Tosha/game-party-hud/releases/latest">
+    <img src="https://img.shields.io/badge/%E2%AC%87%EF%B8%8E%20Download%20latest%20release-238636?style=for-the-badge&logo=windows&logoColor=white&labelColor=1F6FEB" alt="Download latest release for Windows">
+  </a>
+  <br/>
+  <sub>Single self-contained <code>.exe</code> for Windows 10 (1903+) / 11 &nbsp;·&nbsp; <a href="#getting-started">Setup guide ↓</a></sub>
+</p>
 
 - 📦 **Single 180 MB `.exe`** — self-contained, nothing else to install
 - 🪪 **No accounts** — share a 6-character party code
