@@ -17,6 +17,12 @@ namespace GamePartyHud.Party;
 /// </summary>
 public sealed class PartyOrchestrator : IAsyncDisposable
 {
+    // When the raw HP reading changes by more than this between ticks, treat the
+    // drop/spike as suspicious and auto-save a forensic capture (rate-limited).
+    private const float SuspiciousHpJump = 0.20f;
+    // Minimum gap between auto-saves so a genuinely erratic series doesn't spam the log folder.
+    private static readonly TimeSpan MinAutoSaveInterval = TimeSpan.FromSeconds(30);
+
     private readonly IScreenCapture _capture;
     private readonly HpBarAnalyzer _analyzer = new();
     private readonly HpSmoother _smoother = new(windowSize: 3);
@@ -26,6 +32,10 @@ public sealed class PartyOrchestrator : IAsyncDisposable
     private readonly string _selfPeerId;
     private readonly long _joinedAt;
     private CancellationTokenSource? _loopCts;
+
+    private float? _previousRaw;
+    private DateTimeOffset _lastAutoSave = DateTimeOffset.MinValue;
+    private int _tickCounter;
 
     public string SelfPeerId => _selfPeerId;
     public PartyState State => _state;
@@ -100,6 +110,10 @@ public sealed class PartyOrchestrator : IAsyncDisposable
                     var bgra = await _capture.CaptureBgraAsync(cal.Region, ct).ConfigureAwait(false);
                     float raw = _analyzer.Analyze(bgra, cal.Region.W, cal.Region.H, cal);
                     hp = _smoother.Push(raw);
+
+                    LogTick(cal, bgra, raw, hp.Value);
+                    await MaybeAutoForensicAsync(raw).ConfigureAwait(false);
+                    _previousRaw = raw;
                 }
 
                 long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
@@ -121,6 +135,66 @@ public sealed class PartyOrchestrator : IAsyncDisposable
 
             try { await Task.Delay(_cfg.PollIntervalMs + jitter, ct).ConfigureAwait(false); }
             catch (OperationCanceledException) { break; }
+        }
+    }
+
+    private void LogTick(HpCalibration cal, byte[] bgra, float raw, float smoothed)
+    {
+        _tickCounter++;
+        int w = cal.Region.W;
+        int h = cal.Region.H;
+
+        // Per-column match count against the calibrated fullColor — same criterion the
+        // analyzer uses. This lets us see at-a-glance whether the capture pixels even
+        // resemble the calibration.
+        int minMatches = Math.Max(2, h / 5);
+        int pass = 0, partial = 0, empty = 0;
+        for (int x = 0; x < w; x++)
+        {
+            int matches = 0;
+            for (int y = 0; y < h; y++)
+            {
+                int idx = (y * w + x) * 4;
+                var hsv = Hsv.FromBgra(bgra[idx], bgra[idx + 1], bgra[idx + 2]);
+                if (cal.Tolerance.Matches(cal.FullColor, hsv)) matches++;
+            }
+            if (matches == 0) empty++;
+            else if (matches < minMatches) partial++;
+            else pass++;
+        }
+
+        // Sample average HSV of the middle-third (the bit most representative of
+        // the current fill colour in-game) so we can see if the colour drifted from
+        // the calibrated reference.
+        var midAvg = CaptureDiagnostic.AverageHsv(bgra, w, h, w / 3, 2 * w / 3);
+
+        Log.Info(
+            $"PartyOrchestrator tick#{_tickCounter}: raw={raw:F3} smoothed={smoothed:F3} " +
+            $"region={w}x{h}@({cal.Region.X},{cal.Region.Y}) " +
+            $"cols {pass}/{partial}/{empty} pass/partial/empty; " +
+            $"mid-HSV H={midAvg.H:F0}° S={midAvg.S:F2} V={midAvg.V:F2}; " +
+            $"cal-HSV H={cal.FullColor.H:F0}° S={cal.FullColor.S:F2} V={cal.FullColor.V:F2}");
+    }
+
+    private async Task MaybeAutoForensicAsync(float raw)
+    {
+        if (_previousRaw is not { } prev) return;
+        float jump = Math.Abs(raw - prev);
+        if (jump < SuspiciousHpJump) return;
+
+        var now = DateTimeOffset.UtcNow;
+        if (now - _lastAutoSave < MinAutoSaveInterval) return;
+        _lastAutoSave = now;
+
+        Log.Warn($"PartyOrchestrator: suspicious HP jump from {prev:F3} to {raw:F3} (Δ={jump:F3}); saving forensic capture.");
+        try
+        {
+            await CaptureDiagnostic.RunAsync(_cfg, _capture, reason: $"auto-jump-{prev:F2}->{raw:F2}")
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"PartyOrchestrator: forensic capture failed — {ex.Message}");
         }
     }
 
