@@ -25,6 +25,9 @@ public sealed class PeerNetwork : IAsyncDisposable
 {
     public sealed record TurnCreds(string Url, string? Username, string? Credential);
 
+    /// <summary>How long to wait for ICE gathering before publishing an SDP.</summary>
+    private static readonly TimeSpan IceGatheringTimeout = TimeSpan.FromSeconds(5);
+
     private readonly string _selfPeerId;
     private readonly ISignalingProvider _signaling;
     private readonly IReadOnlyList<RTCIceServer> _iceServers;
@@ -39,25 +42,32 @@ public sealed class PeerNetwork : IAsyncDisposable
     public event Action<string>? OnPeerConnected;        // peerId
     public event Action<string>? OnPeerDisconnected;     // peerId
 
-    public PeerNetwork(string selfPeerId, ISignalingProvider signaling, TurnCreds? turn = null)
+    public PeerNetwork(string selfPeerId, ISignalingProvider signaling, TurnCreds? turn = null, IReadOnlyList<RTCIceServer>? iceServers = null)
     {
         _selfPeerId = selfPeerId;
         _signaling = signaling;
 
-        var servers = new List<RTCIceServer>
+        if (iceServers is not null)
         {
-            new RTCIceServer { urls = "stun:stun.l.google.com:19302" }
-        };
-        if (turn is { Url.Length: > 0 })
-        {
-            servers.Add(new RTCIceServer
-            {
-                urls = turn.Url,
-                username = turn.Username ?? string.Empty,
-                credential = turn.Credential ?? string.Empty
-            });
+            _iceServers = iceServers;
         }
-        _iceServers = servers;
+        else
+        {
+            var servers = new List<RTCIceServer>
+            {
+                new RTCIceServer { urls = "stun:stun.l.google.com:19302" }
+            };
+            if (turn is { Url.Length: > 0 })
+            {
+                servers.Add(new RTCIceServer
+                {
+                    urls = turn.Url,
+                    username = turn.Username ?? string.Empty,
+                    credential = turn.Credential ?? string.Empty
+                });
+            }
+            _iceServers = servers;
+        }
 
         _signaling.OnOffer  += HandleOfferAsync;
         _signaling.OnAnswer += HandleAnswerAsync;
@@ -82,67 +92,48 @@ public sealed class PeerNetwork : IAsyncDisposable
 
     /// <summary>
     /// Pre-generate <paramref name="count"/> offers to hand to the signaling layer.
-    /// Each offer has its own RTCPeerConnection that parks in <see cref="_pendingOffers"/>
-    /// waiting for an answer from whatever peer the tracker eventually matches us with.
+    /// Offers are produced in parallel so the ICE-gathering wait is per-batch, not per-offer.
     /// </summary>
     private async Task<IReadOnlyList<PreGeneratedOffer>> GenerateOffersAsync(int count)
     {
-        var result = new List<PreGeneratedOffer>(count);
-        for (int i = 0; i < count; i++)
-        {
-            try
-            {
-                var offerId = Guid.NewGuid().ToString("N")[..20];
-                var pc = new RTCPeerConnection(new RTCConfiguration { iceServers = new List<RTCIceServer>(_iceServers) });
-
-                // Instrument pre-identification: we don't know the peer yet, so log
-                // everything under the offer_id. Once an answer promotes this PC,
-                // the same handlers keep working and log under the peer id instead.
-                string label = offerId;
-                pc.onicecandidate += c =>
-                {
-                    if (c is null) Log.Info($"PeerNetwork[{label}]: ICE gathering produced all candidates.");
-                    else Log.Info($"PeerNetwork[{label}]: ICE candidate — {SummarizeCandidate(c.candidate)}");
-                };
-                pc.oniceconnectionstatechange += s => Log.Info($"PeerNetwork[{label}]: ICE connection state -> {s}");
-                pc.onicegatheringstatechange += s => Log.Info($"PeerNetwork[{label}]: ICE gathering state -> {s}");
-                pc.onsignalingstatechange += () => Log.Info($"PeerNetwork[{label}]: signaling state -> {pc.signalingState}");
-
-                // Initiator creates the data channel.
-                var channel = await pc.createDataChannel("party").ConfigureAwait(false);
-                Log.Info($"PeerNetwork[{offerId}]: opened local data channel 'party' for pre-offer.");
-
-                // Prepare the offer.
-                var offer = pc.createOffer();
-                await pc.setLocalDescription(offer).ConfigureAwait(false);
-                Log.Info($"PeerNetwork[{offerId}]: pre-generated offer ready ({offer.sdp.Length} bytes of SDP).");
-
-                _pendingOffers[offerId] = new PendingOffer(offerId, pc, channel);
-                result.Add(new PreGeneratedOffer(offerId, offer.sdp));
-            }
-            catch (Exception ex)
-            {
-                Log.Error("PeerNetwork: failed to pre-generate an offer; skipping.", ex);
-            }
-        }
-        Log.Info($"PeerNetwork: generated {result.Count}/{count} pre-offers (pending pool size now {_pendingOffers.Count}).");
-        return result;
+        var tasks = Enumerable.Range(0, count).Select(_ => GenerateOneOfferAsync()).ToArray();
+        var results = await Task.WhenAll(tasks).ConfigureAwait(false);
+        var valid = results.Where(r => r is not null).Cast<PreGeneratedOffer>().ToList();
+        Log.Info($"PeerNetwork: generated {valid.Count}/{count} pre-offers (pending pool size now {_pendingOffers.Count}).");
+        return valid;
     }
 
-    private static string SummarizeCandidate(string? candidate)
+    private async Task<PreGeneratedOffer?> GenerateOneOfferAsync()
     {
-        // Candidate string looks like: "candidate:1 1 UDP 2113937151 192.168.1.50 50000 typ host"
-        // Extract the type + whether it's local/public for terseness.
-        if (string.IsNullOrEmpty(candidate)) return "<empty>";
-        var typIdx = candidate.IndexOf(" typ ", StringComparison.Ordinal);
-        if (typIdx >= 0)
+        try
         {
-            var tail = candidate[(typIdx + 5)..];
-            var spaceIdx = tail.IndexOf(' ');
-            var typ = spaceIdx > 0 ? tail[..spaceIdx] : tail;
-            return $"typ={typ}";
+            var offerId = Guid.NewGuid().ToString("N")[..20];
+            var pc = new RTCPeerConnection(new RTCConfiguration { iceServers = new List<RTCIceServer>(_iceServers) });
+            InstrumentPeerConnection(pc, offerId);
+
+            // Initiator creates the data channel.
+            var channel = await pc.createDataChannel("party").ConfigureAwait(false);
+            Log.Info($"PeerNetwork[{offerId}]: opened local data channel 'party' for pre-offer.");
+
+            var offer = pc.createOffer();
+            await pc.setLocalDescription(offer).ConfigureAwait(false);
+
+            // Wait for ICE gathering so the published SDP carries all local candidates.
+            // Without this the remote peer can't find our network address and ICE
+            // connectivity checks never have anything to match against.
+            await WaitForIceGatheringAsync(pc, IceGatheringTimeout).ConfigureAwait(false);
+
+            var sdp = pc.localDescription?.sdp?.ToString() ?? offer.sdp;
+            Log.Info($"PeerNetwork[{offerId}]: pre-generated offer ready ({sdp.Length}B SDP, gathering={pc.iceGatheringState}).");
+
+            _pendingOffers[offerId] = new PendingOffer(offerId, pc, channel);
+            return new PreGeneratedOffer(offerId, sdp);
         }
-        return candidate.Length > 80 ? candidate[..80] + "…" : candidate;
+        catch (Exception ex)
+        {
+            Log.Error("PeerNetwork: failed to pre-generate an offer.", ex);
+            return null;
+        }
     }
 
     private async Task HandleAnswerAsync(string fromPeerId, string offerId, string sdp)
@@ -163,7 +154,6 @@ public sealed class PeerNetwork : IAsyncDisposable
         var peer = new Peer(fromPeerId, pending.Connection) { Channel = pending.Channel };
         if (!_peers.TryAdd(fromPeerId, peer))
         {
-            // Race: someone else promoted first. Drop this one.
             try { pending.Connection.Close("duplicate"); } catch { }
             return;
         }
@@ -177,7 +167,7 @@ public sealed class PeerNetwork : IAsyncDisposable
                 type = RTCSdpType.answer,
                 sdp = sdp
             });
-            Log.Info($"PeerNetwork: accepted answer, promoted pending offer_id={offerId} to peer {fromPeerId}.");
+            Log.Info($"PeerNetwork[{fromPeerId}]: accepted answer, promoted pending offer_id={offerId} to peer.");
         }
         catch (Exception ex)
         {
@@ -198,20 +188,11 @@ public sealed class PeerNetwork : IAsyncDisposable
             Log.Info($"PeerNetwork: ignoring offer from {fromPeerId} — already connected.");
             return;
         }
-        Log.Info($"PeerNetwork[{fromPeerId}]: accepting inbound offer (offer_id={offerId}, {sdp.Length} bytes of SDP).");
+        Log.Info($"PeerNetwork[{fromPeerId}]: accepting inbound offer (offer_id={offerId}, {sdp.Length}B SDP).");
 
         var pc = new RTCPeerConnection(new RTCConfiguration { iceServers = new List<RTCIceServer>(_iceServers) });
+        InstrumentPeerConnection(pc, fromPeerId);
         var peer = new Peer(fromPeerId, pc);
-
-        // Instrument the new PC immediately so we can see ICE progress from here on.
-        pc.onicecandidate += c =>
-        {
-            if (c is null) Log.Info($"PeerNetwork[{fromPeerId}]: ICE gathering produced all candidates.");
-            else Log.Info($"PeerNetwork[{fromPeerId}]: ICE candidate — {SummarizeCandidate(c.candidate)}");
-        };
-        pc.oniceconnectionstatechange += s => Log.Info($"PeerNetwork[{fromPeerId}]: ICE connection state -> {s}");
-        pc.onicegatheringstatechange += s => Log.Info($"PeerNetwork[{fromPeerId}]: ICE gathering state -> {s}");
-        pc.onsignalingstatechange += () => Log.Info($"PeerNetwork[{fromPeerId}]: signaling state -> {pc.signalingState}");
 
         // As the responder we receive the data channel from the remote side.
         pc.ondatachannel += ch =>
@@ -237,8 +218,14 @@ public sealed class PeerNetwork : IAsyncDisposable
             });
             var answer = pc.createAnswer();
             await pc.setLocalDescription(answer).ConfigureAwait(false);
-            await _signaling.SendAnswerAsync(fromPeerId, offerId, answer.sdp, CancellationToken.None).ConfigureAwait(false);
-            Log.Info($"PeerNetwork: answered inbound offer from {fromPeerId} (offer_id={offerId}).");
+
+            // Same ICE-gathering wait as on the initiator side — the remote peer needs
+            // our candidates in the SDP to complete the handshake.
+            await WaitForIceGatheringAsync(pc, IceGatheringTimeout).ConfigureAwait(false);
+
+            var answerSdp = pc.localDescription?.sdp?.ToString() ?? answer.sdp;
+            await _signaling.SendAnswerAsync(fromPeerId, offerId, answerSdp, CancellationToken.None).ConfigureAwait(false);
+            Log.Info($"PeerNetwork[{fromPeerId}]: answered inbound offer (offer_id={offerId}, {answerSdp.Length}B SDP).");
         }
         catch (Exception ex)
         {
@@ -272,7 +259,58 @@ public sealed class PeerNetwork : IAsyncDisposable
         return Task.CompletedTask;
     }
 
-    // ---------- wiring helpers ----------
+    // ---------- wiring / instrumentation ----------
+
+    private static void InstrumentPeerConnection(RTCPeerConnection pc, string label)
+    {
+        pc.onicecandidate += c =>
+        {
+            if (c is null) Log.Info($"PeerNetwork[{label}]: ICE gathering produced all candidates.");
+            else Log.Info($"PeerNetwork[{label}]: ICE candidate — {SummarizeCandidate(c.candidate)}");
+        };
+        pc.oniceconnectionstatechange += s => Log.Info($"PeerNetwork[{label}]: ICE connection state -> {s}");
+        pc.onicegatheringstatechange += s => Log.Info($"PeerNetwork[{label}]: ICE gathering state -> {s}");
+        pc.onsignalingstatechange += () => Log.Info($"PeerNetwork[{label}]: signaling state -> {pc.signalingState}");
+    }
+
+    private static string SummarizeCandidate(string? candidate)
+    {
+        if (string.IsNullOrEmpty(candidate)) return "<empty>";
+        var typIdx = candidate.IndexOf(" typ ", StringComparison.Ordinal);
+        if (typIdx >= 0)
+        {
+            var tail = candidate[(typIdx + 5)..];
+            var spaceIdx = tail.IndexOf(' ');
+            var typ = spaceIdx > 0 ? tail[..spaceIdx] : tail;
+            return $"typ={typ}";
+        }
+        return candidate.Length > 80 ? candidate[..80] + "…" : candidate;
+    }
+
+    /// <summary>
+    /// Wait until the peer connection's ICE gathering reaches <see cref="RTCIceGatheringState.complete"/>,
+    /// or the timeout elapses — whichever comes first. We publish the SDP either way; a partial set of
+    /// candidates is better than none.
+    /// </summary>
+    private static Task WaitForIceGatheringAsync(RTCPeerConnection pc, TimeSpan timeout)
+    {
+        if (pc.iceGatheringState == RTCIceGatheringState.complete) return Task.CompletedTask;
+
+        var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        void OnStateChange(RTCIceGatheringState state)
+        {
+            if (state == RTCIceGatheringState.complete) tcs.TrySetResult();
+        }
+        pc.onicegatheringstatechange += OnStateChange;
+        // Re-check in case gathering finished between the initial check and subscription.
+        if (pc.iceGatheringState == RTCIceGatheringState.complete) tcs.TrySetResult();
+
+        var timeoutTask = Task.Delay(timeout).ContinueWith(_ => tcs.TrySetResult(), TaskScheduler.Default);
+        return tcs.Task.ContinueWith(_ =>
+        {
+            pc.onicegatheringstatechange -= OnStateChange;
+        }, TaskScheduler.Default);
+    }
 
     private void WireConnection(Peer peer)
     {
