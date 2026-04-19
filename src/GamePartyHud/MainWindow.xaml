@@ -1,0 +1,146 @@
+<ui:FluentWindow x:Class="GamePartyHud.MainWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 Title="Game Party HUD"
+                 Width="600" Height="680"
+                 MinWidth="480" MinHeight="520"
+                 WindowStartupLocation="CenterScreen"
+                 WindowBackdropType="Mica"
+                 ExtendsContentIntoTitleBar="True"
+                 ResizeMode="CanMinimize">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <ui:TitleBar Grid.Row="0" Title="Game Party HUD"/>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="24,0,24,0">
+            <StackPanel>
+                <!-- Your settings ───────────────────────────────────────── -->
+                <TextBlock Text="Your settings"
+                           FontSize="18" FontWeight="SemiBold" Margin="0,0,0,12"/>
+
+                <TextBlock Text="Nickname" FontWeight="SemiBold" Margin="0,0,0,2"/>
+                <TextBlock Opacity="0.75" Margin="0,0,0,6" TextWrapping="Wrap"
+                           Text="What your teammates see on the HUD."/>
+                <ui:TextBox x:Name="NickText" MaxLength="32"
+                            PlaceholderText="Your character name"
+                            TextChanged="OnNicknameChanged"/>
+
+                <TextBlock Text="Role" FontWeight="SemiBold" Margin="0,18,0,2"/>
+                <ComboBox x:Name="RoleCombo"
+                          Width="240" HorizontalAlignment="Left"
+                          SelectionChanged="OnRoleChanged"/>
+
+                <TextBlock Text="HP bar region" FontWeight="SemiBold" Margin="0,18,0,2"/>
+                <TextBlock Opacity="0.75" Margin="0,0,0,6" TextWrapping="Wrap">
+                    Be in-game with HP full, then drag a tight box around just the red HP bar —
+                    no nickname, no other bars, no frame.
+                </TextBlock>
+                <StackPanel Orientation="Horizontal">
+                    <ui:Button x:Name="PickRegionButton"
+                               Appearance="Primary"
+                               Icon="Target24"
+                               Content="Pick HP bar region"
+                               Click="OnPickRegion"/>
+                    <TextBlock x:Name="RegionStatus"
+                               VerticalAlignment="Center" Margin="12,0,0,0"
+                               TextWrapping="Wrap" MaxWidth="320"
+                               Foreground="{DynamicResource SystemAccentColorSecondaryBrush}"/>
+                </StackPanel>
+
+                <!-- Party ───────────────────────────────────────────────── -->
+                <Separator Margin="0,28,0,0" Opacity="0.3"/>
+                <TextBlock Text="Party"
+                           FontSize="18" FontWeight="SemiBold" Margin="0,20,0,12"/>
+
+                <!-- When NOT in a party -->
+                <StackPanel x:Name="NotInPartySection">
+                    <TextBlock Text="You're not in a party yet."
+                               Margin="0,0,0,14" Opacity="0.85"/>
+
+                    <ui:Button x:Name="CreateButton"
+                               Content="Create new party"
+                               Icon="AddCircle24"
+                               Appearance="Primary"
+                               HorizontalAlignment="Left"
+                               Padding="16,8"
+                               Click="OnCreate"/>
+                    <TextBlock Opacity="0.6" FontSize="11" Margin="2,6,0,0" TextWrapping="Wrap"
+                               Text="Generates a 6-character code you share with your teammates."/>
+
+                    <TextBlock Text="or join an existing party" Opacity="0.75" Margin="0,20,0,6"/>
+                    <StackPanel Orientation="Horizontal">
+                        <ui:TextBox x:Name="PartyIdInput"
+                                    MaxLength="6"
+                                    CharacterCasing="Upper"
+                                    PlaceholderText="ABCDEF"
+                                    Width="180"
+                                    FontSize="14"/>
+                        <ui:Button x:Name="JoinButton"
+                                   Content="Join"
+                                   Icon="PlugConnected24"
+                                   Margin="8,0,0,0"
+                                   Padding="16,0"
+                                   Click="OnJoin"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- When in a party -->
+                <StackPanel x:Name="InPartySection" Visibility="Collapsed">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="You're in party:"
+                                   VerticalAlignment="Center" Opacity="0.85"/>
+                        <Border Background="#22FFFFFF" CornerRadius="4"
+                                Padding="10,4" Margin="10,0,0,0"
+                                BorderBrush="#33FFFFFF" BorderThickness="1">
+                            <TextBlock x:Name="PartyIdDisplay"
+                                       FontFamily="Consolas, Cascadia Mono, monospace"
+                                       FontSize="18" FontWeight="Bold"
+                                       Text="XXXXXX"/>
+                        </Border>
+                    </StackPanel>
+                    <TextBlock x:Name="MemberCountDisplay"
+                               Margin="0,10,0,14" Opacity="0.85"
+                               Text="1 member (you)"/>
+
+                    <StackPanel Orientation="Horizontal">
+                        <ui:Button Content="Copy ID"
+                                   Icon="Copy24"
+                                   Padding="14,6"
+                                   Click="OnCopy"/>
+                        <ui:Button Content="Leave party"
+                                   Icon="SignOut24"
+                                   Appearance="Secondary"
+                                   Margin="8,0,0,0"
+                                   Padding="14,6"
+                                   Click="OnLeave"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <TextBlock x:Name="PartyStatus"
+                           Margin="0,18,0,0" Opacity="0.85" TextWrapping="Wrap"/>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Bottom bar ────────────────────────────────────────────────── -->
+        <Grid Grid.Row="2" Margin="24,12,24,16">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <ui:Button Content="Close to tray"
+                           Appearance="Secondary"
+                           Icon="ChevronDown24"
+                           Padding="14,6"
+                           Click="OnCloseToTray"/>
+                <ui:Button Content="Quit app"
+                           Icon="Power24"
+                           Margin="8,0,0,0"
+                           Padding="14,6"
+                           Click="OnQuitApp"/>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</ui:FluentWindow>

@@ -5,7 +5,11 @@ using System.Windows.Forms;
 
 namespace GamePartyHud.Tray;
 
-/// <summary>System-tray icon + context menu. Emits events that App.xaml.cs wires to handlers.</summary>
+/// <summary>
+/// System-tray icon + context menu. Minimal surface: everything feature-facing lives
+/// in the main window; the tray just offers a way back to it, log / capture access
+/// for diagnosis, and Quit.
+/// </summary>
 [SupportedOSPlatform("windows")]
 public sealed class TrayIcon : IDisposable
 {
@@ -16,12 +20,7 @@ public sealed class TrayIcon : IDisposable
 
     private readonly NotifyIcon _icon;
 
-    public event Action? CalibrateRequested;
-    public event Action? CreatePartyRequested;
-    public event Action? JoinPartyRequested;
-    public event Action? CopyPartyIdRequested;
-    public event Action? ChangeNicknameRequested;
-    public event Action? ChangeRoleRequested;
+    public event Action? ShowMainWindowRequested;
     public event Action? OpenLogFolderRequested;
     public event Action? SaveTestCaptureRequested;
     public event Action? QuitRequested;
@@ -35,6 +34,7 @@ public sealed class TrayIcon : IDisposable
             Visible = true,
             ContextMenuStrip = BuildMenu()
         };
+        _icon.MouseDoubleClick += (_, _) => ShowMainWindowRequested?.Invoke();
     }
 
     public void SetPartyId(string? id)
@@ -51,27 +51,23 @@ public sealed class TrayIcon : IDisposable
             ForeColor = MenuForeground,
             ShowImageMargin = false,
         };
-        AddItem(m, "Calibrate character\u2026", () => CalibrateRequested?.Invoke());
-        AddItem(m, "Change nickname\u2026",     () => ChangeNicknameRequested?.Invoke());
-        AddItem(m, "Change role\u2026",         () => ChangeRoleRequested?.Invoke());
-        m.Items.Add(new ToolStripSeparator());
-        AddItem(m, "Create party",              () => CreatePartyRequested?.Invoke());
-        AddItem(m, "Join party\u2026",          () => JoinPartyRequested?.Invoke());
-        AddItem(m, "Copy party ID",             () => CopyPartyIdRequested?.Invoke());
+        AddItem(m, "Open Game Party HUD",       () => ShowMainWindowRequested?.Invoke(), bold: true);
         m.Items.Add(new ToolStripSeparator());
         AddItem(m, "Save test capture\u2026",   () => SaveTestCaptureRequested?.Invoke());
         AddItem(m, "Open log folder",           () => OpenLogFolderRequested?.Invoke());
+        m.Items.Add(new ToolStripSeparator());
         AddItem(m, "Quit",                      () => QuitRequested?.Invoke());
         return m;
     }
 
-    private static void AddItem(ContextMenuStrip menu, string text, Action onClick)
+    private static void AddItem(ContextMenuStrip menu, string text, Action onClick, bool bold = false)
     {
         var item = new ToolStripMenuItem(text)
         {
             BackColor = MenuBackground,
             ForeColor = MenuForeground,
         };
+        if (bold) item.Font = new Font(item.Font, FontStyle.Bold);
         item.Click += (_, _) => onClick();
         menu.Items.Add(item);
     }

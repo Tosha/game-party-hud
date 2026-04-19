@@ -5,7 +5,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
-using GamePartyHud.Calibration;
 using GamePartyHud.Capture;
 using GamePartyHud.Config;
 using GamePartyHud.Diagnostics;
@@ -21,7 +20,7 @@ namespace GamePartyHud;
 /// Also installs the global exception handlers that turn "silent crash" into "log +
 /// messagebox" so field bugs are always diagnosable from <c>%AppData%\GamePartyHud\app.log</c>.
 /// </summary>
-public partial class App : Application
+public partial class App : Application, MainWindow.IController
 {
     private TrayIcon? _tray;
     private ConfigStore? _store;
@@ -32,6 +31,35 @@ public partial class App : Application
     private HudViewModelSync? _sync;
     private PartyOrchestrator? _orch;
     private string? _currentPartyId;
+    private MainWindow? _main;
+
+    // -- MainWindow.IController surface --------------------------------------
+
+    AppConfig MainWindow.IController.Config => _config;
+    IScreenCapture MainWindow.IController.Capture => _capture!;
+    string? MainWindow.IController.CurrentPartyId => _currentPartyId;
+    int MainWindow.IController.MemberCount => _state?.Members.Count ?? 0;
+
+    public event Action? PartyStateChanged;
+
+    void MainWindow.IController.UpdateConfig(AppConfig cfg)
+    {
+        _config = cfg;
+        try { _store?.Save(_config); }
+        catch (Exception ex) { Log.Error("Failed to persist config.", ex); }
+    }
+
+    Task MainWindow.IController.CreatePartyAsync() =>
+        JoinOrCreateAsync(PartyIdGenerator.Generate());
+
+    Task MainWindow.IController.JoinPartyAsync(string partyId) =>
+        JoinOrCreateAsync(partyId);
+
+    Task MainWindow.IController.LeavePartyAsync() => LeavePartyAsync();
+
+    Task MainWindow.IController.ShutdownAsync() => QuitAsync();
+
+    // -- startup -------------------------------------------------------------
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -62,7 +90,7 @@ public partial class App : Application
         {
             _store = new ConfigStore();
             _config = _store.Load();
-            Log.Info($"Config loaded. Nickname='{_config.Nickname}', Role={_config.Role}, HpCalibration={(_config.HpCalibration is null ? "none" : "present")}, NicknameRegion={(_config.NicknameRegion is null ? "none" : "present")}, LastPartyId={_config.LastPartyId ?? "none"}.");
+            Log.Info($"Config loaded. Nickname='{_config.Nickname}', Role={_config.Role}, HpCalibration={(_config.HpCalibration is null ? "none" : "present")}, LastPartyId={_config.LastPartyId ?? "none"}.");
         }
         catch (Exception ex)
         {
@@ -73,6 +101,8 @@ public partial class App : Application
         Log.Info("Screen capture: WindowsScreenCapture (GDI BitBlt).");
 
         _state = new PartyState();
+        _state.Changed += () => PartyStateChanged?.Invoke();
+
         _hud = new HudWindow();
         _sync = new HudViewModelSync(_state, _hud.MemberList);
         _hud.Left = _config.HudPosition.X;
@@ -83,82 +113,17 @@ public partial class App : Application
         _hud.KickRequested += OnKickRequested;
 
         _tray = new TrayIcon();
-        _tray.CalibrateRequested      += RunCalibrationSafe;
-        _tray.ChangeNicknameRequested += RunChangeNicknameSafe;
-        _tray.ChangeRoleRequested     += RunChangeRoleSafe;
-        _tray.CreatePartyRequested    += () => _ = JoinOrCreateSafeAsync(PartyIdGenerator.Generate());
-        _tray.JoinPartyRequested      += PromptAndJoinSafe;
-        _tray.CopyPartyIdRequested    += CopyPartyId;
+        _tray.ShowMainWindowRequested += () => _main?.ShowAndActivate();
         _tray.OpenLogFolderRequested  += OpenLogFolder;
         _tray.SaveTestCaptureRequested += SaveTestCaptureSafe;
         _tray.QuitRequested           += () => _ = QuitAsync();
 
-        if (_config.LastPartyId is { Length: > 0 } last) _tray.SetPartyId(last);
-
-        Log.Info("Tray icon installed. Starting the onboarding journey.");
-
-        // Defer the startup journey until the message pump is running so ShowDialog works.
-        Dispatcher.BeginInvoke(new Action(async () =>
-        {
-            try { await RunStartupJourneyAsync(); }
-            catch (Exception ex) { Log.Error("Startup journey crashed.", ex); }
-        }), System.Windows.Threading.DispatcherPriority.Background);
+        _main = new MainWindow(this);
+        _main.Show();
+        Log.Info("Main window shown.");
     }
 
-    /// <summary>
-    /// Walks the user through the initial setup UX at app launch:
-    /// 1. Setup (HP region + nickname + role on one screen). Cancel = bail out, stay in tray.
-    /// 2. Party choice — Create / Join / Skip.
-    /// 3. Create → show party ID + copy button. Join → prompt for ID and connect.
-    /// </summary>
-    private async Task RunStartupJourneyAsync()
-    {
-        // Step 1 — setup. Single-page form; always shown.
-        var setup = new CalibrationWizard(_config, _capture!);
-        var setupOk = setup.ShowDialog();
-        if (setupOk != true || setup.Result is null)
-        {
-            Log.Info("Startup journey: setup cancelled. HUD + tray remain active; no party.");
-            return;
-        }
-        _config = setup.Result;
-        _store!.Save(_config);
-
-        // Step 2 — party choice.
-        var choice = new PartyChoiceDialog();
-        if (choice.ShowDialog() != true)
-        {
-            Log.Info("Startup journey: party choice dismissed. Staying in tray with no party.");
-            return;
-        }
-
-        switch (choice.Choice)
-        {
-            case PartyChoice.Create:
-                var newId = PartyIdGenerator.Generate();
-                await JoinOrCreateAsync(newId);
-                if (_currentPartyId is { Length: > 0 } created)
-                {
-                    var dlg = new PartyCreatedDialog(created);
-                    dlg.ShowDialog();
-                }
-                break;
-
-            case PartyChoice.Join:
-                var joinDlg = new JoinPartyDialog(_config.LastPartyId);
-                if (joinDlg.ShowDialog() == true && !string.IsNullOrWhiteSpace(joinDlg.PartyId))
-                {
-                    await JoinOrCreateAsync(joinDlg.PartyId!);
-                }
-                break;
-
-            case PartyChoice.Skip:
-                Log.Info("Startup journey: user chose to skip party setup.");
-                break;
-        }
-    }
-
-    // ---------- global exception handlers ----------
+    // -- global exception handlers -------------------------------------------
 
     private void InstallGlobalExceptionHandlers()
     {
@@ -183,7 +148,7 @@ public partial class App : Application
                 "Game Party HUD", MessageBoxButton.OK, MessageBoxImage.Error);
         }
         catch { /* best-effort */ }
-        e.Handled = true; // keep the app alive if at all possible
+        e.Handled = true;
     }
 
     private static void OnTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
@@ -192,56 +157,13 @@ public partial class App : Application
         e.SetObserved();
     }
 
-    // ---------- tray handlers (each wrapped so no click ever silently crashes) ----------
-
-    private void RunCalibrationSafe()
-    {
-        try { RunCalibration(); }
-        catch (Exception ex) { Log.Error("Calibration flow crashed.", ex); ShowErrorDialog(ex); }
-    }
-
-    private void RunChangeNicknameSafe()
-    {
-        try { RunChangeNickname(); }
-        catch (Exception ex) { Log.Error("Change-nickname flow crashed.", ex); ShowErrorDialog(ex); }
-    }
-
-    private void RunChangeRoleSafe()
-    {
-        try { RunChangeRole(); }
-        catch (Exception ex) { Log.Error("Change-role flow crashed.", ex); ShowErrorDialog(ex); }
-    }
-
-    private async Task JoinOrCreateSafeAsync(string partyId)
-    {
-        try { await JoinOrCreateAsync(partyId); }
-        catch (Exception ex) { Log.Error("Join/create party crashed.", ex); ShowErrorDialog(ex); }
-    }
-
-    private void PromptAndJoinSafe()
-    {
-        try { PromptAndJoin(); }
-        catch (Exception ex) { Log.Error("Join-party prompt crashed.", ex); ShowErrorDialog(ex); }
-    }
-
-    private void CopyPartyId()
-    {
-        if (_currentPartyId is { Length: > 0 } id)
-        {
-            try { Clipboard.SetText(id); Log.Info($"Copied party ID '{id}' to clipboard."); }
-            catch (Exception ex) { Log.Error("Copy party ID failed.", ex); }
-        }
-    }
+    // -- tray handlers -------------------------------------------------------
 
     private void OpenLogFolder()
     {
         try
         {
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = Log.LogDirectory,
-                UseShellExecute = true
-            });
+            Process.Start(new ProcessStartInfo { FileName = Log.LogDirectory, UseShellExecute = true });
             Log.Info($"Opened log folder: {Log.LogDirectory}.");
         }
         catch (Exception ex)
@@ -264,7 +186,7 @@ public partial class App : Application
             }
             var pngPath = await CaptureDiagnostic.RunAsync(_config, _capture, reason: "manual");
             var body = pngPath is null
-                ? "Couldn't save a test capture. Run Calibrate character\u2026 first, and check app.log."
+                ? "Couldn't save a test capture. Set your HP bar region first (in the main window) and check app.log."
                 : $"Saved:\n  {pngPath}\n  {pngPath}.txt\n\nAttach both files to your bug report.";
             MessageBox.Show(body, "Game Party HUD \u2014 Test Capture",
                 MessageBoxButton.OK, MessageBoxImage.Information);
@@ -294,75 +216,29 @@ public partial class App : Application
         }
     }
 
-    // ---------- actual flows ----------
-
-    private void RunCalibration()
-    {
-        Log.Info("Opening calibration wizard.");
-        var wiz = new CalibrationWizard(_config, _capture!);
-        var ok = wiz.ShowDialog();
-        Log.Info($"Calibration wizard closed (DialogResult={ok}).");
-        if (ok == true && wiz.Result is { } updated)
-        {
-            _config = updated;
-            _store!.Save(_config);
-            Log.Info($"Config saved. HP region={_config.HpCalibration?.Region}, nickname='{_config.Nickname}', role={_config.Role}.");
-        }
-    }
-
-    private void RunChangeNickname()
-    {
-        var dlg = new RenameDialog(_config.Nickname);
-        if (dlg.ShowDialog() == true && dlg.Value is { Length: > 0 } v)
-        {
-            _config = _config with { Nickname = v };
-            _store!.Save(_config);
-            Log.Info($"Nickname changed to '{v}'.");
-        }
-    }
-
-    private void RunChangeRole()
-    {
-        var dlg = new RolePickerDialog(_config.Role);
-        if (dlg.ShowDialog() == true && dlg.Value is { } r)
-        {
-            _config = _config with { Role = r };
-            _store!.Save(_config);
-            Log.Info($"Role changed to {r}.");
-        }
-    }
-
-    private void PromptAndJoin()
-    {
-        var dlg = new JoinPartyDialog(_config.LastPartyId);
-        if (dlg.ShowDialog() == true && !string.IsNullOrWhiteSpace(dlg.PartyId))
-        {
-            _ = JoinOrCreateSafeAsync(dlg.PartyId!);
-        }
-    }
+    // -- party lifecycle -----------------------------------------------------
 
     private async Task JoinOrCreateAsync(string partyId)
     {
-        Log.Info($"Joining party '{partyId}'.");
-
-        if (_orch is { } prev)
+        // One-party rule: refuse to start a new one without explicit Leave.
+        if (_orch is not null || _currentPartyId is not null)
         {
-            Log.Info("Tearing down previous party before joining new one.");
-            await prev.DisposeAsync();
-            _orch = null;
+            Log.Warn($"JoinOrCreateAsync('{partyId}') refused: already in party '{_currentPartyId}'. Leave first.");
+            return;
         }
+
+        Log.Info($"Joining party '{partyId}'.");
 
         var selfPeer = Guid.NewGuid().ToString("N");
         var signaling = new BitTorrentSignaling();
-
         var turn = _config.CustomTurnUrl is { Length: > 0 } url
             ? new PeerNetwork.TurnCreds(url, _config.CustomTurnUsername, _config.CustomTurnCredential)
             : null;
         if (turn is not null) Log.Info($"Using custom TURN URL: {turn.Url}");
 
         var net = new PeerNetwork(selfPeer, signaling, turn);
-        net.OnPeerConnected    += id => Log.Info($"Peer connected: {id}");
-        net.OnPeerDisconnected += id => Log.Info($"Peer disconnected: {id}");
+        net.OnPeerConnected    += id => { Log.Info($"Peer connected: {id}"); PartyStateChanged?.Invoke(); };
+        net.OnPeerDisconnected += id => { Log.Info($"Peer disconnected: {id}"); PartyStateChanged?.Invoke(); };
 
         try
         {
@@ -388,6 +264,41 @@ public partial class App : Application
         _config = _config with { LastPartyId = partyId };
         _store!.Save(_config);
         Log.Info($"Party '{partyId}' joined. Self peer id={selfPeer}. Capture+broadcast loop started.");
+
+        PartyStateChanged?.Invoke();
+    }
+
+    private async Task LeavePartyAsync()
+    {
+        if (_orch is not { } orch)
+        {
+            Log.Info("LeavePartyAsync: no active party; nothing to do.");
+            return;
+        }
+
+        Log.Info($"Leaving party '{_currentPartyId}'.");
+        _orch = null;
+        _currentPartyId = null;
+        _tray?.SetPartyId(null);
+
+        try
+        {
+            await orch.DisposeAsync();
+            Log.Info("Party left and orchestrator disposed.");
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Error while leaving party.", ex);
+        }
+
+        // Clear the local roster so the HUD drops stale peers immediately.
+        if (_state is not null)
+        {
+            // Tick with 'far future' to remove anyone we have cached.
+            _state.Tick(DateTimeOffset.UtcNow.ToUnixTimeSeconds() + 3600);
+        }
+
+        PartyStateChanged?.Invoke();
     }
 
     private async Task QuitAsync()
