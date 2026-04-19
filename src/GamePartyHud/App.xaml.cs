@@ -90,6 +90,7 @@ public partial class App : Application
         _tray.JoinPartyRequested      += PromptAndJoinSafe;
         _tray.CopyPartyIdRequested    += CopyPartyId;
         _tray.OpenLogFolderRequested  += OpenLogFolder;
+        _tray.SaveTestCaptureRequested += SaveTestCaptureSafe;
         _tray.QuitRequested           += () => _ = QuitAsync();
 
         if (_config.LastPartyId is { Length: > 0 } last) _tray.SetPartyId(last);
@@ -248,6 +249,30 @@ public partial class App : Application
             Log.Error("Failed to open log folder.", ex);
             MessageBox.Show($"Log folder:\n{Log.LogDirectory}",
                 "Game Party HUD", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+    }
+
+    private async void SaveTestCaptureSafe()
+    {
+        try
+        {
+            if (_capture is null)
+            {
+                MessageBox.Show("Screen capture isn't ready yet — try again in a moment.",
+                    "Game Party HUD", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            var pngPath = await CaptureDiagnostic.RunAsync(_config, _capture, reason: "manual");
+            var body = pngPath is null
+                ? "Couldn't save a test capture. Run Calibrate character\u2026 first, and check app.log."
+                : $"Saved:\n  {pngPath}\n  {pngPath}.txt\n\nAttach both files to your bug report.";
+            MessageBox.Show(body, "Game Party HUD \u2014 Test Capture",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            Log.Error("SaveTestCapture failed.", ex);
+            ShowErrorDialog(ex);
         }
     }
 
