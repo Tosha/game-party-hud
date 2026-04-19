@@ -100,11 +100,6 @@ public sealed class PartyOrchestrator : IAsyncDisposable
                     var bgra = await _capture.CaptureBgraAsync(cal.Region, ct).ConfigureAwait(false);
                     float raw = _analyzer.Analyze(bgra, cal.Region.W, cal.Region.H, cal);
                     hp = _smoother.Push(raw);
-                    Log.Info($"PartyOrchestrator tick: raw={raw:F3}, smoothed={hp:F3}, region={cal.Region.W}x{cal.Region.H} @({cal.Region.X},{cal.Region.Y})");
-                }
-                else
-                {
-                    Log.Info("PartyOrchestrator tick: no HP calibration in config; hp=null.");
                 }
 
                 long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();

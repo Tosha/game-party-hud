@@ -63,7 +63,7 @@ The config is persisted at `%AppData%\GamePartyHud\config.json`, so you only do 
 
 ### Re-calibrate when things change
 
-If the app reads your HP incorrectly (bar jumps around, or shows empty when it shouldn't), right-click the tray → **Save test capture…** — it saves a PNG of what the app is seeing plus a `.txt` diagnostic next to it, both in `%AppData%\GamePartyHud\`. Open the PNG; if it doesn't look like a clean HP bar, re-calibrate with a tighter selection. If it does look clean but HP still reads wrong, attach both files to a bug report.
+If the app reads your HP incorrectly (bar jumps around, or shows empty when it shouldn't), re-run **Calibrate character…** from the tray with a tighter selection around the coloured fill. If it still reads wrong, grab `%AppData%\GamePartyHud\app.log` and attach it to a bug report.
 
 ### 4. Play together
 
