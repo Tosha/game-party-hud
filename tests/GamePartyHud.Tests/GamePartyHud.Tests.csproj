@@ -18,4 +18,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\GamePartyHud\GamePartyHud.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <None Include="Capture\HpBarExamples\*.png" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>
