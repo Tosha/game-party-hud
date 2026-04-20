@@ -1,8 +1,12 @@
 using System;
 using System.ComponentModel;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media.Animation;
+using System.Windows.Threading;
 using GamePartyHud.Calibration;
 using GamePartyHud.Capture;
 using GamePartyHud.Config;
@@ -51,12 +55,21 @@ public partial class MainWindow : FluentWindow
     private bool _populating;
     private bool _allowClose;
 
+    private sealed record RoleOption(Role Role, string Glyph, string Label);
+
+    private enum RegionStatusState { NotSet, Ok, Error }
+
+    private static readonly RoleOption[] RoleOptions =
+        Enum.GetValues<Role>()
+            .Select(r => new RoleOption(r, RoleGlyph.For(r), RoleDisplay.For(r)))
+            .ToArray();
+
     public MainWindow(IController controller)
     {
         InitializeComponent();
         _ctl = controller;
 
-        RoleCombo.ItemsSource = Enum.GetValues<Role>();
+        RoleCombo.ItemsSource = RoleOptions;
         PopulateFromConfig();
         RefreshPartyState();
 
@@ -74,16 +87,16 @@ public partial class MainWindow : FluentWindow
         {
             var cfg = _ctl.Config;
             NickText.Text = cfg.Nickname == AppConfig.Defaults.Nickname ? "" : cfg.Nickname;
-            RoleCombo.SelectedItem = cfg.Role;
+            RoleCombo.SelectedItem = RoleOptions.FirstOrDefault(o => o.Role == cfg.Role) ?? RoleOptions[0];
 
             if (cfg.HpCalibration is { } cal)
             {
-                RegionStatus.Text =
-                    $"Saved: {cal.Region.W}\u00D7{cal.Region.H} at ({cal.Region.X}, {cal.Region.Y}).";
+                SetRegionStatus(RegionStatusState.Ok,
+                    $"Saved {cal.Region.W}\u00D7{cal.Region.H} at ({cal.Region.X}, {cal.Region.Y}).");
             }
             else
             {
-                RegionStatus.Text = "Not set yet.";
+                SetRegionStatus(RegionStatusState.NotSet, "Not set yet.");
             }
         }
         finally { _populating = false; }
@@ -128,12 +141,26 @@ public partial class MainWindow : FluentWindow
         Log.Info($"MainWindow: nickname changed to '{nick}'.");
     }
 
+    private void OnPartyIdInputChanged(object sender, TextChangedEventArgs e)
+    {
+        JoinButton.IsEnabled = (PartyIdInput.Text?.Trim().Length == 6);
+    }
+
+    private void OnPartyIdInputKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter && JoinButton.IsEnabled)
+        {
+            e.Handled = true;
+            OnJoin(JoinButton, new RoutedEventArgs());
+        }
+    }
+
     private void OnRoleChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_populating) return;
-        if (RoleCombo.SelectedItem is not Role r) return;
-        _ctl.UpdateConfig(_ctl.Config with { Role = r });
-        Log.Info($"MainWindow: role changed to {r}.");
+        if (RoleCombo.SelectedItem is not RoleOption opt) return;
+        _ctl.UpdateConfig(_ctl.Config with { Role = opt.Role });
+        Log.Info($"MainWindow: role changed to {opt.Role}.");
     }
 
     private async void OnPickRegion(object sender, RoutedEventArgs e)
@@ -163,16 +190,14 @@ public partial class MainWindow : FluentWindow
                 HpCalibration = cal,
                 NicknameRegion = null,
             });
-            RegionStatus.Foreground = System.Windows.Media.Brushes.LightGreen;
-            RegionStatus.Text =
-                $"Captured {region.W}\u00D7{region.H} at ({region.X}, {region.Y}).";
+            SetRegionStatus(RegionStatusState.Ok,
+                $"Captured {region.W}\u00D7{region.H} at ({region.X}, {region.Y}).");
             Log.Info($"MainWindow: HP region calibrated {region.W}x{region.H}@({region.X},{region.Y}).");
         }
         catch (Exception ex)
         {
             Log.Error("MainWindow: OnPickRegion failed.", ex);
-            RegionStatus.Foreground = System.Windows.Media.Brushes.Salmon;
-            RegionStatus.Text = "Error: " + ex.Message;
+            SetRegionStatus(RegionStatusState.Error, "Error: " + ex.Message);
         }
         finally
         {
@@ -213,24 +238,31 @@ public partial class MainWindow : FluentWindow
     {
         if (_ctl.CurrentPartyId is { Length: > 0 })
         {
-            SetPartyStatus("You're already in a party. Leave it first before creating a new one.");
+            SetPartyStatus("You're already in a party. Leave it first before creating a new one.",
+                InfoBarSeverity.Warning);
             return;
         }
         if (!ValidateBeforeJoiningParty()) return;
 
-        SetPartyStatus("Creating party…");
+        SetPartyStatus("Creating party…", InfoBarSeverity.Informational);
         SetPartyActionsBusy(true, CreateProgress);
         try
         {
             await _ctl.CreatePartyAsync();
-            SetPartyStatus(_ctl.CurrentPartyId is { Length: > 0 }
-                ? "Party created. Share the ID above with your teammates."
-                : "Party creation didn't finish — check app.log.");
+            if (_ctl.CurrentPartyId is { Length: > 0 })
+            {
+                SetPartyStatus("Party created. Share the ID above with your teammates.",
+                    InfoBarSeverity.Success, autoDismissMs: 5000);
+            }
+            else
+            {
+                SetPartyStatus("Party creation didn't finish — check app.log.", InfoBarSeverity.Warning);
+            }
         }
         catch (Exception ex)
         {
             Log.Error("MainWindow: CreatePartyAsync failed.", ex);
-            SetPartyStatus("Party creation failed: " + ex.Message);
+            SetPartyStatus("Party creation failed: " + ex.Message, InfoBarSeverity.Error);
         }
         finally
         {
@@ -243,31 +275,39 @@ public partial class MainWindow : FluentWindow
     {
         if (_ctl.CurrentPartyId is { Length: > 0 })
         {
-            SetPartyStatus("You're already in a party. Leave it first before joining another.");
+            SetPartyStatus("You're already in a party. Leave it first before joining another.",
+                InfoBarSeverity.Warning);
             return;
         }
         var id = (PartyIdInput.Text ?? "").Trim().ToUpperInvariant();
         if (string.IsNullOrEmpty(id))
         {
-            SetPartyStatus("Enter a party ID first.");
+            SetPartyStatus("Enter a party ID first.", InfoBarSeverity.Warning);
             PartyIdInput.Focus();
             return;
         }
         if (!ValidateBeforeJoiningParty()) return;
 
-        SetPartyStatus("Joining party " + id + "…");
+        SetPartyStatus("Joining party " + id + "…", InfoBarSeverity.Informational);
         SetPartyActionsBusy(true, JoinProgress);
         try
         {
             await _ctl.JoinPartyAsync(id);
-            SetPartyStatus(_ctl.CurrentPartyId is { Length: > 0 }
-                ? "Joined. Waiting for teammates' state to arrive."
-                : "Couldn't join. The tracker may be unreachable or your network is blocking P2P.");
+            if (_ctl.CurrentPartyId is { Length: > 0 })
+            {
+                SetPartyStatus("Joined. Waiting for teammates' state to arrive.",
+                    InfoBarSeverity.Success, autoDismissMs: 5000);
+            }
+            else
+            {
+                SetPartyStatus("Couldn't join. The tracker may be unreachable or your network is blocking P2P.",
+                    InfoBarSeverity.Warning);
+            }
         }
         catch (Exception ex)
         {
             Log.Error("MainWindow: JoinPartyAsync failed.", ex);
-            SetPartyStatus("Join failed: " + ex.Message);
+            SetPartyStatus("Join failed: " + ex.Message, InfoBarSeverity.Error);
         }
         finally
         {
@@ -279,16 +319,16 @@ public partial class MainWindow : FluentWindow
     private async void OnLeave(object sender, RoutedEventArgs e)
     {
         if (_ctl.CurrentPartyId is not { Length: > 0 }) return;
-        SetPartyStatus("Leaving party…");
+        SetPartyStatus("Leaving party…", InfoBarSeverity.Informational);
         try
         {
             await _ctl.LeavePartyAsync();
-            SetPartyStatus("You've left the party.");
+            SetPartyStatus("You've left the party.", InfoBarSeverity.Success, autoDismissMs: 3000);
         }
         catch (Exception ex)
         {
             Log.Error("MainWindow: LeavePartyAsync failed.", ex);
-            SetPartyStatus("Leave failed: " + ex.Message);
+            SetPartyStatus("Leave failed: " + ex.Message, InfoBarSeverity.Error);
         }
         finally { RefreshPartyState(); }
     }
@@ -300,41 +340,98 @@ public partial class MainWindow : FluentWindow
             try
             {
                 Clipboard.SetText(id);
-                SetPartyStatus("Copied '" + id + "' to clipboard.");
+                ShowCopyFeedback();
             }
             catch (Exception ex)
             {
                 Log.Error("MainWindow: copy ID failed.", ex);
-                SetPartyStatus("Copy failed: " + ex.Message);
+                SetPartyStatus("Copy failed: " + ex.Message, InfoBarSeverity.Error);
             }
         }
+    }
+
+    private void ShowCopyFeedback()
+    {
+        CopyFeedback.BeginAnimation(UIElement.OpacityProperty, null);
+        CopyFeedback.Opacity = 1.0;
+        var fade = new DoubleAnimation
+        {
+            From = 1.0,
+            To = 0.0,
+            BeginTime = TimeSpan.FromMilliseconds(800),
+            Duration = TimeSpan.FromMilliseconds(700),
+            FillBehavior = FillBehavior.HoldEnd,
+        };
+        CopyFeedback.BeginAnimation(UIElement.OpacityProperty, fade);
     }
 
     private bool ValidateBeforeJoiningParty()
     {
         if (_ctl.Config.HpCalibration is null)
         {
-            SetPartyStatus("Set your HP bar region first (see 'Pick HP bar region' above).");
+            SetPartyStatus("Set your HP bar region first (see 'Pick HP bar region' above).",
+                InfoBarSeverity.Warning);
             return false;
         }
         if (string.IsNullOrWhiteSpace(_ctl.Config.Nickname)
             || _ctl.Config.Nickname == AppConfig.Defaults.Nickname)
         {
-            SetPartyStatus("Enter your nickname first.");
+            SetPartyStatus("Enter your nickname first.", InfoBarSeverity.Warning);
             NickText.Focus();
             return false;
         }
         return true;
     }
 
-    private void SetPartyStatus(string message)
+    private DispatcherTimer? _partyStatusAutoDismiss;
+
+    private void SetPartyStatus(string message, InfoBarSeverity severity = InfoBarSeverity.Informational,
+                                int autoDismissMs = 0)
     {
-        PartyStatus.Text = message;
+        _partyStatusAutoDismiss?.Stop();
+        _partyStatusAutoDismiss = null;
+
+        PartyStatus.Message = message;
+        PartyStatus.Severity = severity;
+        PartyStatus.IsOpen = true;
+
+        if (autoDismissMs > 0)
+        {
+            var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(autoDismissMs) };
+            timer.Tick += (_, _) =>
+            {
+                timer.Stop();
+                if (ReferenceEquals(_partyStatusAutoDismiss, timer))
+                {
+                    PartyStatus.IsOpen = false;
+                    _partyStatusAutoDismiss = null;
+                }
+            };
+            _partyStatusAutoDismiss = timer;
+            timer.Start();
+        }
+    }
+
+    private void SetRegionStatus(RegionStatusState state, string text)
+    {
+        RegionStatus.Text = text;
+        (string icon, string bg, string border, string fg) = state switch
+        {
+            RegionStatusState.Ok    => ("\u2713", "#333E8E3E", "#664CAF50", "#FFAEE6AE"),
+            RegionStatusState.Error => ("\u2717", "#33C62828", "#66EF5350", "#FFFFB4B4"),
+            _                       => ("\u25CB", "#22FFFFFF", "#33FFFFFF", "#CCCCCCCC"),
+        };
+        RegionStatusIcon.Text = icon;
+        RegionStatusIcon.Foreground = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString(fg)!;
+        RegionStatus.Foreground = RegionStatusIcon.Foreground;
+        RegionStatusChip.Background = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString(bg)!;
+        RegionStatusChip.BorderBrush = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString(border)!;
     }
 
     private void SetPartyActionsBusy(bool busy, ProgressRing activeSpinner)
     {
-        CreateButton.IsEnabled = JoinButton.IsEnabled = !busy;
+        CreateButton.IsEnabled = !busy;
+        JoinButton.IsEnabled = !busy && (PartyIdInput.Text?.Trim().Length == 6);
         activeSpinner.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
     }
 
