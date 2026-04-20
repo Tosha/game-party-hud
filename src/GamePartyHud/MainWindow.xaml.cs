@@ -219,7 +219,7 @@ public partial class MainWindow : FluentWindow
         if (!ValidateBeforeJoiningParty()) return;
 
         SetPartyStatus("Creating party…");
-        CreateButton.IsEnabled = JoinButton.IsEnabled = false;
+        SetPartyActionsBusy(true, CreateProgress);
         try
         {
             await _ctl.CreatePartyAsync();
@@ -234,7 +234,7 @@ public partial class MainWindow : FluentWindow
         }
         finally
         {
-            CreateButton.IsEnabled = JoinButton.IsEnabled = true;
+            SetPartyActionsBusy(false, CreateProgress);
             RefreshPartyState();
         }
     }
@@ -256,7 +256,7 @@ public partial class MainWindow : FluentWindow
         if (!ValidateBeforeJoiningParty()) return;
 
         SetPartyStatus("Joining party " + id + "…");
-        CreateButton.IsEnabled = JoinButton.IsEnabled = false;
+        SetPartyActionsBusy(true, JoinProgress);
         try
         {
             await _ctl.JoinPartyAsync(id);
@@ -271,7 +271,7 @@ public partial class MainWindow : FluentWindow
         }
         finally
         {
-            CreateButton.IsEnabled = JoinButton.IsEnabled = true;
+            SetPartyActionsBusy(false, JoinProgress);
             RefreshPartyState();
         }
     }
@@ -330,6 +330,12 @@ public partial class MainWindow : FluentWindow
     private void SetPartyStatus(string message)
     {
         PartyStatus.Text = message;
+    }
+
+    private void SetPartyActionsBusy(bool busy, ProgressRing activeSpinner)
+    {
+        CreateButton.IsEnabled = JoinButton.IsEnabled = !busy;
+        activeSpinner.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
     }
 
     // ------------------------------------------------------------------
