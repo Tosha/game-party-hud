@@ -28,12 +28,25 @@ public sealed class PeerNetwork : IAsyncDisposable
     /// <summary>How long to wait for ICE gathering before publishing an SDP.</summary>
     private static readonly TimeSpan IceGatheringTimeout = TimeSpan.FromSeconds(5);
 
+    /// <summary>
+    /// Cap on <see cref="_pendingOffers"/>. The WebTorrent announce protocol caps a
+    /// single announce at 20 offers and we emit 5 per minute, so ~2 announces of
+    /// buffer is enough for late-arriving answers while bounding the number of
+    /// live <see cref="RTCPeerConnection"/>s. Field logs showed the pool growing to
+    /// 500+ because no offer was ever being answered — also a memory-leak symptom.
+    /// </summary>
+    private const int PendingOfferPoolCap = 15;
+
     private readonly string _selfPeerId;
     private readonly ISignalingProvider _signaling;
     private readonly IReadOnlyList<RTCIceServer> _iceServers;
 
     // offer_id -> the RTCPeerConnection we generated that offer on (awaiting an answer).
+    // Also tracked in insertion order via _pendingOfferOrder so we can evict the oldest
+    // when the pool grows past PendingOfferPoolCap.
     private readonly ConcurrentDictionary<string, PendingOffer> _pendingOffers = new();
+    private readonly ConcurrentQueue<string> _pendingOfferOrder = new();
+    private readonly object _poolEvictionLock = new();
 
     // remote peer_id -> established peer.
     private readonly ConcurrentDictionary<string, Peer> _peers = new();
@@ -127,12 +140,34 @@ public sealed class PeerNetwork : IAsyncDisposable
             Log.Info($"PeerNetwork[{offerId}]: pre-generated offer ready ({sdp.Length}B SDP, gathering={pc.iceGatheringState}).");
 
             _pendingOffers[offerId] = new PendingOffer(offerId, pc, channel);
+            _pendingOfferOrder.Enqueue(offerId);
+            EvictOldestPendingOffers();
             return new PreGeneratedOffer(offerId, sdp);
         }
         catch (Exception ex)
         {
             Log.Error("PeerNetwork: failed to pre-generate an offer.", ex);
             return null;
+        }
+    }
+
+    /// <summary>
+    /// Close and remove pending offers from the front of the insertion-order queue
+    /// until the live pool size is within <see cref="PendingOfferPoolCap"/>.
+    /// </summary>
+    private void EvictOldestPendingOffers()
+    {
+        lock (_poolEvictionLock)
+        {
+            while (_pendingOffers.Count > PendingOfferPoolCap
+                && _pendingOfferOrder.TryDequeue(out var oldestId))
+            {
+                if (_pendingOffers.TryRemove(oldestId, out var stale))
+                {
+                    Log.Info($"PeerNetwork: evicting stale pending offer_id={oldestId} (pool was {_pendingOffers.Count + 1}, cap={PendingOfferPoolCap}).");
+                    try { stale.Connection.Close("evicted"); } catch { }
+                }
+            }
         }
     }
 
@@ -362,6 +397,7 @@ public sealed class PeerNetwork : IAsyncDisposable
             try { po.Connection.Close("dispose"); } catch { }
         }
         _pendingOffers.Clear();
+        while (_pendingOfferOrder.TryDequeue(out _)) { }
 
         foreach (var p in _peers.Values)
         {

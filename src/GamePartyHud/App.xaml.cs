@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.Reflection;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -229,7 +230,12 @@ public partial class App : Application, MainWindow.IController
 
         Log.Info($"Joining party '{partyId}'.");
 
-        var selfPeer = Guid.NewGuid().ToString("N");
+        // 20 random bytes rendered as 40-char lower-case hex. On the tracker wire
+        // BitTorrentSignaling re-encodes this as 20 raw Latin-1 bytes (WebTorrent
+        // peer_id convention); internally everywhere else we carry the hex form.
+        var selfPeerBytes = new byte[20];
+        RandomNumberGenerator.Fill(selfPeerBytes);
+        var selfPeer = Convert.ToHexString(selfPeerBytes).ToLowerInvariant();
         var signaling = new BitTorrentSignaling();
         var turn = _config.CustomTurnUrl is { Length: > 0 } url
             ? new PeerNetwork.TurnCreds(url, _config.CustomTurnUsername, _config.CustomTurnCredential)
