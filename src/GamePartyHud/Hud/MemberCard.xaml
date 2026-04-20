@@ -77,8 +77,8 @@
                            Margin="6,0,6,0"
                            TextTrimming="CharacterEllipsis">
                     <TextBlock.Effect>
-                        <DropShadowEffect Color="Black" BlurRadius="2"
-                                          ShadowDepth="0" Opacity="0.85"/>
+                        <DropShadowEffect Color="Black" BlurRadius="3"
+                                          ShadowDepth="0" Opacity="1.0"/>
                     </TextBlock.Effect>
                 </TextBlock>
             </Grid>
