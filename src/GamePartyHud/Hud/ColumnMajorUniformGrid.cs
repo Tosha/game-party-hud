@@ -58,8 +58,12 @@ public sealed class ColumnMajorUniformGrid : Panel
     {
         int rows = Math.Max(1, Rows);
         int cols = Math.Max(1, Columns);
+        // cellH must use the same row count as MeasureOverride — otherwise for
+        // parties with < Rows members the per-cell height collapses and children
+        // stack/overlap at the top of the panel instead of tiling cleanly.
+        int visibleRows = Math.Max(1, Math.Min(InternalChildren.Count, rows));
         double cellW = finalSize.Width / cols;
-        double cellH = finalSize.Height / rows;
+        double cellH = finalSize.Height / visibleRows;
 
         int i = 0;
         foreach (UIElement child in InternalChildren)
