@@ -5,7 +5,7 @@
 
 ## Goals
 
-Three user-visible improvements to the party HUD:
+Four user-visible improvements to the party HUD:
 
 1. Remove the dead space on the right of each card (HP bar fills the card width). Outer border grows/shrinks to match actual content.
 2. Reduce the role-icon tile by ~30% to better match the Albion reference density.
@@ -33,7 +33,7 @@ Three user-visible improvements to the party HUD:
 | Card height       | 40      | **24**                 |
 | Role-icon tile    | 26×26   | **18×18** (≈30% smaller) |
 | HP bar height     | 8       | **22**                 |
-| HP bar width      | 90 (fixed) | **fills remaining width** (~178 after role icon + gaps) |
+| HP bar width      | 90 (fixed) | **174** (fills remaining width after role icon + gaps) |
 | Nickname position | Above bar, separate TextBlock | **Overlaid on bar**, vertically centered, left-padded 6px |
 
 The `UserControl` root declarations change from `Width="240" Height="40"` → `Width="200" Height="24"`.
