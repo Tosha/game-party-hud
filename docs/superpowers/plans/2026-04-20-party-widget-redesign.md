@@ -4,7 +4,7 @@
 
 **Goal:** Re-skin the HUD party widget: nickname overlaid on a taller HP bar, 30%-smaller role icon, outer border hugs actual content, and an 11th member overflows into a second column (max 2 × 10).
 
-**Architecture:** Pure WPF / XAML change plus one tiny code-behind addition. The view-model layer (`HudMember`, `PartyState`, `HudViewModelSync`) is untouched. Two-column layout is implemented with a `UniformGrid` whose `Columns` property is bound to a new `ColumnCount` property on `HudWindow`, recomputed whenever `MemberList.CollectionChanged` fires.
+**Architecture:** Pure WPF / XAML change plus one tiny code-behind addition. The view-model layer (`HudMember`, `PartyState`, `HudViewModelSync`) is untouched. Two-column layout is implemented with a `ColumnMajorUniformGrid` (custom `Panel` subclass) whose `Columns` property is bound to a new `ColumnCount` property on `HudWindow`, recomputed whenever `MemberList.CollectionChanged` fires.
 
 **Tech Stack:** WPF (.NET 8, `net8.0-windows10.0.19041.0`), XAML, C# 12.
 
@@ -21,7 +21,7 @@
 | `src/GamePartyHud/Hud/HudSmokeHarness.cs` | Modify | Accept a count argument to seed 1 / 5 / 10 / 11 / 15 / 20 fake members for visual breakpoint tests. |
 | `src/GamePartyHud/Hud/MemberCard.xaml` | Rewrite body | New 200×24 card: smaller role tile, taller bar, nickname overlaid. |
 | `src/GamePartyHud/Hud/HudWindow.xaml.cs` | Modify | Add `INotifyPropertyChanged` + `ColumnCount` property, subscribe to `MemberList.CollectionChanged`. |
-| `src/GamePartyHud/Hud/HudWindow.xaml` | Modify | Wrap members in a `UniformGrid` (`Rows=10`, `Columns` bound to `ColumnCount`). |
+| `src/GamePartyHud/Hud/HudWindow.xaml` | Modify | Wrap members in a `ColumnMajorUniformGrid` (`Rows=10`, `Columns` bound to `ColumnCount`). |
 | `src/GamePartyHud/App.xaml.cs` | Modify (tiny) | Parse smoke-harness count argument. |
 
 No files created. No files deleted. No test files touched.
@@ -368,7 +368,7 @@ private int _columnCount = 1;
 
 /// <summary>
 /// Number of columns the HUD should render (1 for parties of ≤10, 2 for 11–20).
-/// Bound by <c>HudWindow.xaml</c>'s <c>UniformGrid.Columns</c>.
+/// Bound by <c>HudWindow.xaml</c>'s <c>ColumnMajorUniformGrid.Columns</c>.
 /// </summary>
 public int ColumnCount
 {
@@ -444,10 +444,12 @@ git commit -m "feat(hud): ColumnCount property tracks party size for 2-col wrap"
 
 ## Task 4: Switch `HudWindow.xaml` to a column-wrapping layout
 
+> **Implementation note:** The original plan used WPF's built-in `<UniformGrid>` here, but that control is row-major; during implementation it was replaced with the custom `<hud:ColumnMajorUniformGrid>` panel defined in `src/GamePartyHud/Hud/ColumnMajorUniformGrid.cs`.
+
 **Files:**
 - Modify: `src/GamePartyHud/Hud/HudWindow.xaml`
 
-`UniformGrid` with `Rows="10"` and a bound `Columns` gives us column-major fill (items 1–10 populate column A top-to-bottom, items 11–20 populate column B).
+`ColumnMajorUniformGrid` with `Rows="10"` and a bound `Columns` gives us column-major fill (items 1–10 populate column A top-to-bottom, items 11–20 populate column B).
 
 - [ ] **Step 1: Replace the `ItemsControl` block**
 
@@ -457,7 +459,7 @@ Open `src/GamePartyHud/Hud/HudWindow.xaml`. Find the existing `<ItemsControl x:N
 <ItemsControl x:Name="Members">
     <ItemsControl.ItemsPanel>
         <ItemsPanelTemplate>
-            <UniformGrid Rows="10"
+            <hud:ColumnMajorUniformGrid Rows="10"
                          Columns="{Binding ColumnCount,
                                    RelativeSource={RelativeSource AncestorType=Window}}"/>
         </ItemsPanelTemplate>
@@ -477,7 +479,7 @@ Open `src/GamePartyHud/Hud/HudWindow.xaml`. Find the existing `<ItemsControl x:N
 ```
 
 The only structural changes vs. today:
-1. An `ItemsPanelTemplate` containing a `UniformGrid` replaces the default vertical `StackPanel` panel.
+1. An `ItemsPanelTemplate` containing a `ColumnMajorUniformGrid` replaces the default vertical `StackPanel` panel.
 2. `<hud:MemberCard Margin="0,2">` becomes `<hud:MemberCard Margin="2,1">` — 2px left/right gives a 4px gap between columns; 1px top/bottom gives a 2px gap between rows (matching today's spacing).
 
 Keep everything else in the file (`<Window>` attributes, the outer `<Border x:Name="RootBorder">`, the `<StackPanel>` holding the lock button row, and the lock-button `<Grid>`) untouched.
@@ -521,7 +523,7 @@ Expected: all existing tests pass.
 
 ```bash
 git add src/GamePartyHud/Hud/HudWindow.xaml
-git commit -m "feat(hud): 2-column overflow at >10 members via UniformGrid"
+git commit -m "feat(hud): 2-column overflow at >10 members via ColumnMajorUniformGrid"
 ```
 
 ---

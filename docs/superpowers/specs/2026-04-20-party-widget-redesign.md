@@ -54,9 +54,9 @@ The card's own outer `Border` stays (1px `#33FFFFFF`) but its padding shrinks to
 
 Replace the single vertical `StackPanel` hosting `ItemsControl` with a layout that can switch between 1 and 2 columns based on member count:
 
-- The `ItemsControl`'s `ItemsPanel` is set to a `UniformGrid` with `Rows=10`. `Columns` is bound to a derived property on the view model (`ColumnCount`) that returns `1` when `Members.Count <= 10` and `2` otherwise. Members beyond 20 are clamped (out-of-scope bug but must not throw).
-- `UniformGrid` with a fixed `Rows=10` fills **column-major**: items 1–10 populate the first column top-to-bottom, items 11–20 populate the second column. This matches the user's expectation ("11th player appears on the second column").
-- Column gap: 4px. Implementation: each `MemberCard` gets `Margin="2,1"`. `UniformGrid` cells end up sized to the card + its margins, so cards are separated by 4px horizontally (2 right + 2 left) and 2px vertically. The extra 2px outside the leftmost/rightmost cells is absorbed by the root Border's existing `Padding="6,4"` (or reduce root padding slightly if the total feels too wide in practice).
+- The `ItemsControl`'s `ItemsPanel` is set to a `ColumnMajorUniformGrid` with `Rows=10`. `Columns` is bound to a derived property on the view model (`ColumnCount`) that returns `1` when `Members.Count <= 10` and `2` otherwise. Members beyond 20 are clamped (out-of-scope bug but must not throw).
+- `ColumnMajorUniformGrid` (a custom `Panel` subclass) fills **column-major**: items 1–10 populate the first column top-to-bottom, items 11–20 populate the second column. This matches the user's expectation ("11th player appears on the second column"). WPF's built-in `UniformGrid` is row-major and was replaced by this custom panel during implementation.
+- Column gap: 4px. Implementation: each `MemberCard` gets `Margin="2,1"`. `ColumnMajorUniformGrid` cells end up sized to the card + its margins, so cards are separated by 4px horizontally (2 right + 2 left) and 2px vertically. The extra 2px outside the leftmost/rightmost cells is absorbed by the root Border's existing `Padding="6,4"` (or reduce root padding slightly if the total feels too wide in practice).
 - Row gap: the `Margin="2,1"` above also gives a 2px vertical gap, matching today's spacing.
 
 ### 3. Window sizing
@@ -108,7 +108,7 @@ Per `CLAUDE.md`: pure logic is unit-tested, UI is manually verified.
 ## Risks & mitigations
 
 - **Text legibility over red fill** — the black drop shadow should handle it. If it doesn't look good in practice, we fall back to a semi-transparent dark horizontal strip under the text (inside the bar), still overlaying the fill. Decide during manual verification.
-- **`UniformGrid` fill order** — WPF `UniformGrid` is row-major by default. To get column-major (1–10 in col A, 11–20 in col B) we fix `Rows=10` and let `Columns` vary; with `Rows` fixed, extra items spill into new columns, which *is* column-major for our purposes. Confirmed behaviour. If it surprises us during manual test, fall back to two separate `ItemsControl`s bound to `Members.Take(10)` / `Members.Skip(10)`.
+- **`UniformGrid` fill order** — WPF `UniformGrid` is row-major by default. We hit this in practice: fixing `Rows=10` and varying `Columns` did **not** produce the desired column-major fill. We replaced `UniformGrid` with a small custom `Panel` subclass, `ColumnMajorUniformGrid`, which lays out items column-major directly. The two-`ItemsControl` fallback was not needed.
 - **Window-width flicker at the 10 ↔ 11 boundary** — `SizeToContent` plus a re-bound `Columns` should be atomic within a single layout pass. If flicker appears, briefly hide the root Border during the transition (1 frame) — a last-resort hack we'd only reach for if we actually observe a problem.
 
 ## Out of scope / future ideas
