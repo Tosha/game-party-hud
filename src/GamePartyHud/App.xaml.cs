@@ -78,12 +78,22 @@ public partial class App : Application, MainWindow.IController
 #if DEBUG
         foreach (var arg in e.Args)
         {
-            if (string.Equals(arg, GamePartyHud.Hud.HudSmokeHarness.CliFlag, StringComparison.Ordinal))
+            bool isBare = string.Equals(arg, GamePartyHud.Hud.HudSmokeHarness.CliFlag, StringComparison.Ordinal);
+            bool hasCount = arg.StartsWith(GamePartyHud.Hud.HudSmokeHarness.CliFlag + "=", StringComparison.Ordinal);
+            if (!isBare && !hasCount) continue;
+
+            int count = 4;
+            if (hasCount)
             {
-                Log.Info("DEBUG smoke harness flag detected; showing HUD with fake members.");
-                GamePartyHud.Hud.HudSmokeHarness.Run(this);
-                return;
+                int eq = arg.IndexOf('=');
+                if (eq > 0 && int.TryParse(arg.AsSpan(eq + 1), out var parsed))
+                {
+                    count = parsed;
+                }
             }
+            Log.Info($"DEBUG smoke harness flag detected; showing HUD with {count} fake members.");
+            GamePartyHud.Hud.HudSmokeHarness.Run(this, count);
+            return;
         }
 #endif
 
