@@ -10,6 +10,7 @@
     <RootNamespace>GamePartyHud</RootNamespace>
     <AssemblyName>GamePartyHud</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>app.ico</ApplicationIcon>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <AssemblyTitle>Game Party HUD</AssemblyTitle>
     <Product>Game Party HUD</Product>
@@ -25,5 +26,9 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="GamePartyHud.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="app.ico" />
   </ItemGroup>
 </Project>
