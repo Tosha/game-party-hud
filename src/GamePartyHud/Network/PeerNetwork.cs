@@ -25,8 +25,31 @@ public sealed class PeerNetwork : IAsyncDisposable
 {
     public sealed record TurnCreds(string Url, string? Username, string? Credential);
 
-    /// <summary>How long to wait for ICE gathering before publishing an SDP.</summary>
-    private static readonly TimeSpan IceGatheringTimeout = TimeSpan.FromSeconds(5);
+    /// <summary>
+    /// How long to wait for ICE gathering before publishing an SDP. Field logs
+    /// showed a joiner whose STUN round-trip was >5 s — its pre-offers all shipped
+    /// with <c>gathering=gathering</c> and only host candidates, which dooms NAT
+    /// traversal the instant a peer sits on a different LAN. 12 s covers slow
+    /// networks while still bounding the initial party-join delay.
+    /// </summary>
+    private static readonly TimeSpan IceGatheringTimeout = TimeSpan.FromSeconds(12);
+
+    /// <summary>
+    /// Default STUN servers when no explicit <c>iceServers</c> is supplied. Using
+    /// several is redundancy, not waste: if one is slow or rate-limiting, the
+    /// others still produce a <c>srflx</c> candidate within the gathering window.
+    /// The stun1–4 names all resolve to Google's anycast STUN; Cloudflare's is an
+    /// unrelated second vendor so an outage on one side doesn't sink us.
+    /// </summary>
+    private static readonly string[] DefaultStunUrls =
+    {
+        "stun:stun.l.google.com:19302",
+        "stun:stun1.l.google.com:19302",
+        "stun:stun2.l.google.com:19302",
+        "stun:stun3.l.google.com:19302",
+        "stun:stun4.l.google.com:19302",
+        "stun:stun.cloudflare.com:3478",
+    };
 
     /// <summary>
     /// Cap on <see cref="_pendingOffers"/>. The WebTorrent announce protocol caps a
@@ -66,10 +89,8 @@ public sealed class PeerNetwork : IAsyncDisposable
         }
         else
         {
-            var servers = new List<RTCIceServer>
-            {
-                new RTCIceServer { urls = "stun:stun.l.google.com:19302" }
-            };
+            var servers = new List<RTCIceServer>(DefaultStunUrls.Length + 1);
+            foreach (var url in DefaultStunUrls) servers.Add(new RTCIceServer { urls = url });
             if (turn is { Url.Length: > 0 })
             {
                 servers.Add(new RTCIceServer
@@ -137,7 +158,9 @@ public sealed class PeerNetwork : IAsyncDisposable
             await WaitForIceGatheringAsync(pc, IceGatheringTimeout).ConfigureAwait(false);
 
             var sdp = pc.localDescription?.sdp?.ToString() ?? offer.sdp;
-            Log.Info($"PeerNetwork[{offerId}]: pre-generated offer ready ({sdp.Length}B SDP, gathering={pc.iceGatheringState}).");
+            var cands = SummarizeSdpCandidates(sdp);
+            Log.Info($"PeerNetwork[{offerId}]: pre-generated offer ready ({sdp.Length}B SDP, gathering={pc.iceGatheringState}, candidates={cands}).");
+            WarnIfNoReflexiveCandidate(offerId, sdp, pc.iceGatheringState);
 
             _pendingOffers[offerId] = new PendingOffer(offerId, pc, channel);
             _pendingOfferOrder.Enqueue(offerId);
@@ -223,7 +246,8 @@ public sealed class PeerNetwork : IAsyncDisposable
             Log.Info($"PeerNetwork: ignoring offer from {fromPeerId} — already connected.");
             return;
         }
-        Log.Info($"PeerNetwork[{fromPeerId}]: accepting inbound offer (offer_id={offerId}, {sdp.Length}B SDP).");
+        var inboundCands = SummarizeSdpCandidates(sdp);
+        Log.Info($"PeerNetwork[{fromPeerId}]: accepting inbound offer (offer_id={offerId}, {sdp.Length}B SDP, remote candidates={inboundCands}).");
 
         var pc = new RTCPeerConnection(new RTCConfiguration { iceServers = new List<RTCIceServer>(_iceServers) });
         InstrumentPeerConnection(pc, fromPeerId);
@@ -259,8 +283,10 @@ public sealed class PeerNetwork : IAsyncDisposable
             await WaitForIceGatheringAsync(pc, IceGatheringTimeout).ConfigureAwait(false);
 
             var answerSdp = pc.localDescription?.sdp?.ToString() ?? answer.sdp;
+            var answerCands = SummarizeSdpCandidates(answerSdp);
             await _signaling.SendAnswerAsync(fromPeerId, offerId, answerSdp, CancellationToken.None).ConfigureAwait(false);
-            Log.Info($"PeerNetwork[{fromPeerId}]: answered inbound offer (offer_id={offerId}, {answerSdp.Length}B SDP).");
+            Log.Info($"PeerNetwork[{fromPeerId}]: answered inbound offer (offer_id={offerId}, {answerSdp.Length}B SDP, candidates={answerCands}).");
+            WarnIfNoReflexiveCandidate(fromPeerId, answerSdp, pc.iceGatheringState);
         }
         catch (Exception ex)
         {
@@ -323,6 +349,57 @@ public sealed class PeerNetwork : IAsyncDisposable
     }
 
     /// <summary>
+    /// Walk SDP <c>a=candidate</c> lines and report a compact count per type, e.g.
+    /// <c>host=1,srflx=1</c>. A pre-offer with no <c>srflx</c> / <c>relay</c> will
+    /// only be reachable on the same LAN — useful signal when debugging why two
+    /// peers that signalled fine still can't talk.
+    /// </summary>
+    internal static string SummarizeSdpCandidates(string sdp)
+    {
+        int host = 0, srflx = 0, prflx = 0, relay = 0, other = 0;
+        foreach (var rawLine in sdp.Split('\n'))
+        {
+            var line = rawLine.Trim();
+            if (!line.StartsWith("a=candidate:", StringComparison.Ordinal)) continue;
+            var typIdx = line.IndexOf(" typ ", StringComparison.Ordinal);
+            if (typIdx < 0) { other++; continue; }
+            var tail = line[(typIdx + 5)..];
+            var spaceIdx = tail.IndexOf(' ');
+            var typ = spaceIdx > 0 ? tail[..spaceIdx] : tail;
+            switch (typ)
+            {
+                case "host":  host++;  break;
+                case "srflx": srflx++; break;
+                case "prflx": prflx++; break;
+                case "relay": relay++; break;
+                default:      other++; break;
+            }
+        }
+        var parts = new List<string>(5);
+        if (host  > 0) parts.Add($"host={host}");
+        if (srflx > 0) parts.Add($"srflx={srflx}");
+        if (prflx > 0) parts.Add($"prflx={prflx}");
+        if (relay > 0) parts.Add($"relay={relay}");
+        if (other > 0) parts.Add($"other={other}");
+        return parts.Count == 0 ? "<none>" : string.Join(",", parts);
+    }
+
+    /// <summary>
+    /// If an SDP ships with only host candidates, ICE won't cross NAT. Surface it
+    /// as a WARN so the next "players can't see each other" log has a pointed
+    /// hint to chase (instead of a silent failure 15 s later).
+    /// </summary>
+    private static void WarnIfNoReflexiveCandidate(string label, string sdp, RTCIceGatheringState gatheringState)
+    {
+        if (sdp.Contains(" typ srflx", StringComparison.Ordinal)) return;
+        if (sdp.Contains(" typ relay", StringComparison.Ordinal)) return;
+        var reason = gatheringState == RTCIceGatheringState.complete
+            ? "STUN reachable but produced no reflexive candidate (odd network)"
+            : $"ICE gathering state is still '{gatheringState}' — STUN did not respond within the timeout";
+        Log.Warn($"PeerNetwork[{label}]: SDP contains only host candidates ({reason}). Peers on different networks will fail to connect — a TURN URL in the config (CustomTurnUrl) is the usual workaround.");
+    }
+
+    /// <summary>
     /// Wait until the peer connection's ICE gathering reaches <see cref="RTCIceGatheringState.complete"/>,
     /// or the timeout elapses — whichever comes first. We publish the SDP either way; a partial set of
     /// candidates is better than none.
@@ -356,6 +433,16 @@ public sealed class PeerNetwork : IAsyncDisposable
             {
                 Log.Info($"PeerNetwork[{peer.PeerId}]: 🟢 peer CONNECTED. Data channel state: {peer.Channel?.readyState}");
                 OnPeerConnected?.Invoke(peer.PeerId);
+            }
+            if (state == RTCPeerConnectionState.failed)
+            {
+                // ICE couldn't find a working candidate pair. Almost always means at
+                // least one peer is behind symmetric NAT / a firewall that blocks
+                // UDP. TURN is the standard workaround; we don't ship one because of
+                // the zero-hosting-cost rule, but the user can point us at any.
+                Log.Warn($"PeerNetwork[{peer.PeerId}]: ICE failed — no working candidate pair between the two peers. "
+                       + "This usually means one peer sits behind a symmetric NAT or a firewall blocking UDP. "
+                       + "Workarounds: open NAT / UPnP, a gaming VPN (ZeroTier / Tailscale), or set CustomTurnUrl in config.json to a free TURN server.");
             }
             if (state == RTCPeerConnectionState.disconnected
              || state == RTCPeerConnectionState.failed
