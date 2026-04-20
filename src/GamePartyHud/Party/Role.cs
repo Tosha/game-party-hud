@@ -16,3 +16,18 @@ public static class RoleGlyph
         _              => "?"
     };
 }
+
+/// <summary>User-facing display labels for <see cref="Role"/>. Used by the main window's Role picker.</summary>
+public static class RoleDisplay
+{
+    public static string For(Role role) => role switch
+    {
+        Role.Tank      => "Tank",
+        Role.Healer    => "Healer",
+        Role.Support   => "Support",
+        Role.MeleeDps  => "Melee DPS",
+        Role.RangedDps => "Ranged DPS",
+        Role.Utility   => "Utility",
+        _              => role.ToString()
+    };
+}

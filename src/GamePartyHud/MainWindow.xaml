@@ -35,7 +35,19 @@
                 <TextBlock Text="Role" FontWeight="SemiBold" Margin="0,18,0,2"/>
                 <ComboBox x:Name="RoleCombo"
                           Width="240" HorizontalAlignment="Left"
-                          SelectionChanged="OnRoleChanged"/>
+                          SelectionChanged="OnRoleChanged">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding Glyph}" FontSize="13"
+                                           Width="18" TextAlignment="Center"
+                                           VerticalAlignment="Center"/>
+                                <TextBlock Text="{Binding Label}" Margin="6,0,0,0"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
 
                 <TextBlock Text="HP bar region" FontWeight="SemiBold" Margin="0,18,0,2"/>
                 <TextBlock Opacity="0.75" Margin="0,0,0,6" TextWrapping="Wrap">
@@ -48,10 +60,21 @@
                                Icon="Target24"
                                Content="Pick HP bar region"
                                Click="OnPickRegion"/>
-                    <TextBlock x:Name="RegionStatus"
-                               VerticalAlignment="Center" Margin="12,0,0,0"
-                               TextWrapping="Wrap" MaxWidth="320"
-                               Foreground="{DynamicResource SystemAccentColorSecondaryBrush}"/>
+                    <Border x:Name="RegionStatusChip"
+                            VerticalAlignment="Center" Margin="12,0,0,0"
+                            Padding="10,4"
+                            CornerRadius="10"
+                            Background="#22FFFFFF"
+                            BorderBrush="#33FFFFFF" BorderThickness="1">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock x:Name="RegionStatusIcon"
+                                       Text="○" FontSize="12" FontWeight="Bold"
+                                       VerticalAlignment="Center"/>
+                            <TextBlock x:Name="RegionStatus"
+                                       VerticalAlignment="Center" Margin="6,0,0,0"
+                                       TextWrapping="Wrap" MaxWidth="320"/>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
 
                 <!-- Party ───────────────────────────────────────────────── -->
@@ -88,11 +111,14 @@
                                     CharacterCasing="Upper"
                                     PlaceholderText="ABCDEF"
                                     Width="180"
-                                    FontSize="14"/>
+                                    FontSize="14"
+                                    TextChanged="OnPartyIdInputChanged"
+                                    KeyDown="OnPartyIdInputKeyDown"/>
                         <ui:Button x:Name="JoinButton"
                                    Content="Join"
                                    Icon="PlugConnected24"
                                    Appearance="Secondary"
+                                   IsEnabled="False"
                                    Margin="8,0,0,0"
                                    Padding="16,0"
                                    Click="OnJoin"/>
@@ -118,6 +144,14 @@
                                        FontSize="18" FontWeight="Bold"
                                        Text="XXXXXX"/>
                         </Border>
+                        <TextBlock x:Name="CopyFeedback"
+                                   Text="✓ Copied"
+                                   VerticalAlignment="Center"
+                                   Margin="12,0,0,0"
+                                   FontWeight="SemiBold"
+                                   Foreground="#FFAEE6AE"
+                                   Opacity="0"
+                                   IsHitTestVisible="False"/>
                     </StackPanel>
                     <TextBlock x:Name="MemberCountDisplay"
                                Margin="0,10,0,14" Opacity="0.85"
@@ -138,8 +172,10 @@
                     </StackPanel>
                 </StackPanel>
 
-                <TextBlock x:Name="PartyStatus"
-                           Margin="0,18,0,0" Opacity="0.85" TextWrapping="Wrap"/>
+                <ui:InfoBar x:Name="PartyStatus"
+                            Margin="0,18,0,0"
+                            IsOpen="False"
+                            IsClosable="True"/>
             </StackPanel>
         </ScrollViewer>
 
