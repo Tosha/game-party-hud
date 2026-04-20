@@ -18,7 +18,7 @@ public partial class HudWindow : Window, INotifyPropertyChanged
 
     /// <summary>
     /// Number of columns the HUD should render (1 for parties of ≤10, 2 for 11–20).
-    /// Bound by <c>HudWindow.xaml</c>'s <c>UniformGrid.Columns</c>.
+    /// Bound by <c>HudWindow.xaml</c>'s <c>ColumnMajorUniformGrid.Columns</c>.
     /// </summary>
     public int ColumnCount
     {

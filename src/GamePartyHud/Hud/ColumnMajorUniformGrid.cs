@@ -50,7 +50,8 @@ public sealed class ColumnMajorUniformGrid : Panel
             if (child.DesiredSize.Height > maxH) maxH = child.DesiredSize.Height;
         }
 
-        return new Size(maxW * cols, maxH * rows);
+        int visibleRows = Math.Min(InternalChildren.Count, rows);
+        return new Size(maxW * cols, maxH * visibleRows);
     }
 
     protected override Size ArrangeOverride(Size finalSize)
