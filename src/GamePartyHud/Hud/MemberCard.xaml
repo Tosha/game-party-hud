@@ -1,10 +1,10 @@
 <UserControl x:Class="GamePartyHud.Hud.MemberCard"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             Width="240" Height="40"
+             Width="200" Height="24"
              Background="Transparent"
              FontFamily="Segoe UI Variable, Segoe UI">
-    <Border Padding="6,4" CornerRadius="2" Opacity="{Binding Opacity}"
+    <Border Padding="2,1" CornerRadius="2" Opacity="{Binding Opacity}"
             BorderBrush="#33FFFFFF" BorderThickness="1">
         <Border.Background>
             <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
@@ -18,8 +18,9 @@
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <!-- Role glyph tile -->
-            <Border Grid.Column="0" Width="26" Height="26" Margin="0,0,8,0"
+            <!-- Role glyph tile (30% smaller than the previous 26px tile) -->
+            <Border Grid.Column="0" Width="18" Height="18" Margin="0,0,4,0"
+                    VerticalAlignment="Center"
                     CornerRadius="2"
                     BorderBrush="#55E12A2A" BorderThickness="1">
                 <Border.Background>
@@ -30,42 +31,57 @@
                 </Border.Background>
                 <TextBlock Text="{Binding RoleGlyph}"
                            Foreground="#FFF2F2F2"
-                           FontSize="14"
+                           FontSize="10"
                            FontWeight="SemiBold"
                            HorizontalAlignment="Center"
                            VerticalAlignment="Center"/>
             </Border>
 
-            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+            <!-- HP bar (fills remaining width). Nickname is overlaid on the bar. -->
+            <Grid Grid.Column="1" Width="174" Height="22" VerticalAlignment="Center">
+                <!-- Empty track -->
+                <Border CornerRadius="2"
+                        BorderBrush="#44000000" BorderThickness="1">
+                    <Border.Background>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                            <GradientStop Color="#661A1A1C" Offset="0"/>
+                            <GradientStop Color="#66111113" Offset="1"/>
+                        </LinearGradientBrush>
+                    </Border.Background>
+                </Border>
+                <!-- Red fill -->
+                <Border CornerRadius="2"
+                        HorizontalAlignment="Left"
+                        Width="{Binding HpPercent, Converter={StaticResource HpWidthConverter}, ConverterParameter=174}">
+                    <Border.Background>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                            <GradientStop Color="#FFFF3B3B" Offset="0"/>
+                            <GradientStop Color="#FFC81919" Offset="1"/>
+                        </LinearGradientBrush>
+                    </Border.Background>
+                </Border>
+                <!-- Inner white highlight stripe on the filled portion -->
+                <Border CornerRadius="2"
+                        HorizontalAlignment="Left"
+                        Height="2"
+                        VerticalAlignment="Top"
+                        Margin="1,1,0,0"
+                        Background="#33FFFFFF"
+                        Width="{Binding HpPercent, Converter={StaticResource HpWidthConverter}, ConverterParameter=172}"/>
+                <!-- Nickname overlay, drop-shadow keeps it legible over both fill and empty track -->
                 <TextBlock Text="{Binding Nickname}"
-                           Foreground="#FFE8E8EA"
+                           Foreground="#FFF2F2F2"
                            FontSize="11" FontWeight="SemiBold"
-                           TextTrimming="CharacterEllipsis"/>
-                <Grid Height="8" Margin="0,3,0,0" Width="90" HorizontalAlignment="Left">
-                    <!-- Empty/track -->
-                    <Border Background="#661A1A1C" CornerRadius="1"
-                            BorderBrush="#44000000" BorderThickness="1"/>
-                    <!-- Fill -->
-                    <Border CornerRadius="1"
-                            HorizontalAlignment="Left"
-                            Width="{Binding HpPercent, Converter={StaticResource HpWidthConverter}, ConverterParameter=90}">
-                        <Border.Background>
-                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                                <GradientStop Color="#FFFF3B3B" Offset="0"/>
-                                <GradientStop Color="#FFC81919" Offset="1"/>
-                            </LinearGradientBrush>
-                        </Border.Background>
-                    </Border>
-                    <!-- Inner highlight on fill -->
-                    <Border CornerRadius="1"
-                            HorizontalAlignment="Left"
-                            Height="2"
-                            VerticalAlignment="Top"
-                            Margin="1,1,0,0"
-                            Background="#33FFFFFF"
-                            Width="{Binding HpPercent, Converter={StaticResource HpWidthConverter}, ConverterParameter=88}"/>
-                </Grid>
-            </StackPanel>
+                           VerticalAlignment="Center"
+                           HorizontalAlignment="Left"
+                           Margin="6,0,6,0"
+                           TextTrimming="CharacterEllipsis">
+                    <TextBlock.Effect>
+                        <DropShadowEffect Color="Black" BlurRadius="2"
+                                          ShadowDepth="0" Opacity="0.85"/>
+                    </TextBlock.Effect>
+                </TextBlock>
+            </Grid>
         </Grid>
     </Border>
 </UserControl>
