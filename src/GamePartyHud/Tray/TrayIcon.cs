@@ -30,11 +30,31 @@ public sealed class TrayIcon : IDisposable
         _icon = new NotifyIcon
         {
             Text = "Game Party HUD",
-            Icon = SystemIcons.Application,
+            Icon = LoadAppIcon(),
             Visible = true,
             ContextMenuStrip = BuildMenu()
         };
         _icon.MouseDoubleClick += (_, _) => ShowMainWindowRequested?.Invoke();
+    }
+
+    /// <summary>
+    /// Extracts the .exe's embedded <c>app.ico</c> (wired via <c>&lt;ApplicationIcon&gt;</c>
+    /// in the csproj). Falls back to the generic system icon if extraction fails for any
+    /// reason so the tray still shows something.
+    /// </summary>
+    private static Icon LoadAppIcon()
+    {
+        try
+        {
+            var exe = Environment.ProcessPath;
+            if (!string.IsNullOrEmpty(exe))
+            {
+                var extracted = Icon.ExtractAssociatedIcon(exe);
+                if (extracted is not null) return extracted;
+            }
+        }
+        catch { /* fall through to system default */ }
+        return SystemIcons.Application;
     }
 
     public void SetPartyId(string? id)
