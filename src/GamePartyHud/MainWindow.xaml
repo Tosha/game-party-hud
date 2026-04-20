@@ -63,13 +63,20 @@
                     <TextBlock Text="You're not in a party yet."
                                Margin="0,0,0,14" Opacity="0.85"/>
 
-                    <ui:Button x:Name="CreateButton"
-                               Content="Create new party"
-                               Icon="AddCircle24"
-                               Appearance="Primary"
-                               HorizontalAlignment="Left"
-                               Padding="16,8"
-                               Click="OnCreate"/>
+                    <StackPanel Orientation="Horizontal">
+                        <ui:Button x:Name="CreateButton"
+                                   Content="Create new party"
+                                   Icon="AddCircle24"
+                                   Appearance="Primary"
+                                   Padding="16,8"
+                                   Click="OnCreate"/>
+                        <ui:ProgressRing x:Name="CreateProgress"
+                                         Width="20" Height="20"
+                                         IsIndeterminate="True"
+                                         Visibility="Collapsed"
+                                         Margin="12,0,0,0"
+                                         VerticalAlignment="Center"/>
+                    </StackPanel>
                     <TextBlock Opacity="0.6" FontSize="11" Margin="2,6,0,0" TextWrapping="Wrap"
                                Text="Generates a 6-character code you share with your teammates."/>
 
@@ -87,6 +94,12 @@
                                    Margin="8,0,0,0"
                                    Padding="16,0"
                                    Click="OnJoin"/>
+                        <ui:ProgressRing x:Name="JoinProgress"
+                                         Width="20" Height="20"
+                                         IsIndeterminate="True"
+                                         Visibility="Collapsed"
+                                         Margin="12,0,0,0"
+                                         VerticalAlignment="Center"/>
                     </StackPanel>
                 </StackPanel>
 
