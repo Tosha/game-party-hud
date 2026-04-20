@@ -22,4 +22,8 @@
     <PackageReference Include="SIPSorcery" Version="8.0.9" />
     <PackageReference Include="WPF-UI" Version="3.0.5" />
   </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="GamePartyHud.Tests" />
+  </ItemGroup>
 </Project>
