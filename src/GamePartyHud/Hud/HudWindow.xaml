@@ -32,9 +32,16 @@
                 </Button>
             </Grid>
             <ItemsControl x:Name="Members">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <hud:ColumnMajorUniformGrid Rows="10"
+                                                    Columns="{Binding ColumnCount,
+                                                              RelativeSource={RelativeSource AncestorType=Window}}"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <hud:MemberCard Margin="0,2">
+                        <hud:MemberCard Margin="2,1">
                             <hud:MemberCard.ContextMenu>
                                 <ContextMenu>
                                     <MenuItem Header="Kick from party" Click="OnKickClick"/>

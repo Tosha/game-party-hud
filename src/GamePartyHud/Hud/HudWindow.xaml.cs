@@ -1,5 +1,7 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -8,9 +10,33 @@ using System.Windows.Media;
 
 namespace GamePartyHud.Hud;
 
-public partial class HudWindow : Window
+public partial class HudWindow : Window, INotifyPropertyChanged
 {
     public ObservableCollection<HudMember> MemberList { get; } = new();
+
+    private int _columnCount = 1;
+
+    /// <summary>
+    /// Number of columns the HUD should render (1 for parties of ≤10, 2 for 11–20).
+    /// Bound by <c>HudWindow.xaml</c>'s <c>ColumnMajorUniformGrid.Columns</c>.
+    /// </summary>
+    public int ColumnCount
+    {
+        get => _columnCount;
+        private set
+        {
+            if (_columnCount == value) return;
+            _columnCount = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ColumnCount)));
+        }
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    private void RecomputeColumnCount()
+    {
+        ColumnCount = MemberList.Count > 10 ? 2 : 1;
+    }
 
     private bool _isLocked = true;
     public bool IsLocked => _isLocked;
@@ -26,8 +52,14 @@ public partial class HudWindow : Window
     {
         InitializeComponent();
         Members.ItemsSource = MemberList;
+        MemberList.CollectionChanged += OnMemberListChanged;
         SourceInitialized += OnSourceInitialized;
         Loaded += (_, _) => UpdateLockVisual();
+    }
+
+    private void OnMemberListChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        RecomputeColumnCount();
     }
 
     private void OnSourceInitialized(object? sender, EventArgs e)
