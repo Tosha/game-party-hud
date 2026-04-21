@@ -157,7 +157,15 @@ public sealed class PeerNetwork : IAsyncDisposable
             // connectivity checks never have anything to match against.
             await WaitForIceGatheringAsync(pc, IceGatheringTimeout).ConfigureAwait(false);
 
-            var sdp = pc.localDescription?.sdp?.ToString() ?? offer.sdp;
+            // SIPSorcery freezes localDescription.sdp at setLocalDescription time and
+            // never rewrites it when trickle candidates arrive (see RTCPeerConnection.cs
+            // setLocalDescription / createBaseSdp). So localDescription only has the
+            // host candidates SIPSorcery had at offer-creation time — srflx gathered
+            // ~200 ms later via STUN never makes it in. Re-call createOffer now that
+            // _rtpIceChannel.Candidates is populated with the full set: createBaseSdp
+            // re-emits the same ufrag/pwd/fingerprint but picks up every candidate.
+            var finalOffer = pc.createOffer();
+            var sdp = finalOffer.sdp ?? offer.sdp ?? "";
             var cands = SummarizeSdpCandidates(sdp);
             Log.Info($"PeerNetwork[{offerId}]: pre-generated offer ready ({sdp.Length}B SDP, gathering={pc.iceGatheringState}, candidates={cands}).");
             WarnIfNoReflexiveCandidate(offerId, sdp, pc.iceGatheringState);
@@ -282,7 +290,13 @@ public sealed class PeerNetwork : IAsyncDisposable
             // our candidates in the SDP to complete the handshake.
             await WaitForIceGatheringAsync(pc, IceGatheringTimeout).ConfigureAwait(false);
 
-            var answerSdp = pc.localDescription?.sdp?.ToString() ?? answer.sdp;
+            // See GenerateOneOfferAsync for why we regenerate here instead of reading
+            // localDescription.sdp: SIPSorcery doesn't retrofit trickle candidates
+            // into the stored description, so srflx gathered after setLocalDescription
+            // won't appear. Re-creating the answer re-runs createBaseSdp against the
+            // now-populated _rtpIceChannel.Candidates.
+            var finalAnswer = pc.createAnswer();
+            var answerSdp = finalAnswer.sdp ?? answer.sdp ?? "";
             var answerCands = SummarizeSdpCandidates(answerSdp);
             await _signaling.SendAnswerAsync(fromPeerId, offerId, answerSdp, CancellationToken.None).ConfigureAwait(false);
             Log.Info($"PeerNetwork[{fromPeerId}]: answered inbound offer (offer_id={offerId}, {answerSdp.Length}B SDP, candidates={answerCands}).");
@@ -394,7 +408,7 @@ public sealed class PeerNetwork : IAsyncDisposable
         if (sdp.Contains(" typ srflx", StringComparison.Ordinal)) return;
         if (sdp.Contains(" typ relay", StringComparison.Ordinal)) return;
         var reason = gatheringState == RTCIceGatheringState.complete
-            ? "STUN reachable but produced no reflexive candidate (odd network)"
+            ? "ICE gathering completed but produced no reflexive candidate — STUN probably blocked by the network or firewall"
             : $"ICE gathering state is still '{gatheringState}' — STUN did not respond within the timeout";
         Log.Warn($"PeerNetwork[{label}]: SDP contains only host candidates ({reason}). Peers on different networks will fail to connect — a TURN URL in the config (CustomTurnUrl) is the usual workaround.");
     }
