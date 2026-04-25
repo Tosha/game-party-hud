@@ -1,0 +1,17 @@
+name = "gph-relay"
+main = "src/worker.ts"
+compatibility_date = "2025-01-01"
+
+[[durable_objects.bindings]]
+name = "PARTY_ROOM"
+class_name = "PartyRoom"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["PartyRoom"]
+
+[limits]
+cpu_ms = 50
+
+[placement]
+mode = "smart"
