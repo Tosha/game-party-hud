@@ -18,7 +18,7 @@ A tiny, free Windows overlay that shows your party's HP bars on top of any game 
 
 - 📦 **Single 180 MB `.exe`** — self-contained, nothing else to install
 - 🪪 **No accounts** — share a 6-character party code
-- 💰 **Free forever** — built on free public infrastructure (BitTorrent trackers + PeerJS) so nobody pays for hosting
+- 💰 **Free forever** — routes through a stateless WebSocket relay on the Cloudflare Workers free tier (`relay/` in this repo); no accounts to pay for, nothing persisted server-side
 - 🖥️ **Windows 10 (1903+) / Windows 11**
 - 🛡️ **Anti-cheat safe** — see below
 
@@ -34,7 +34,7 @@ It works exactly the same way OBS, Discord Overlay, Steam Overlay, and Nvidia Sh
 |---|---|
 | Reads a small rectangle of **screen pixels** (like a screenshot) | ❌ Read the game's memory |
 | Draws its own **transparent overlay window** on top of your screen | ❌ Inject code into the game process |
-| Sends your own screen-derived HP percentage to party members over **WebRTC** | ❌ Hook DirectX, Vulkan, or any game rendering API |
+| Sends your own screen-derived HP percentage to party members over a **WebSocket** to a stateless relay | ❌ Hook DirectX, Vulkan, or any game rendering API |
 | | ❌ Modify game files, registry, or network traffic |
 | | ❌ Give you any in-game advantage (it's the same info you already see on your own screen, just shared with teammates) |
 
@@ -106,19 +106,35 @@ The tray menu also has:
 
 ## If you can't connect to the party
 
-About 10–15% of home internet setups (symmetric NAT, carrier-grade NAT on some ISPs, very restrictive routers) can't form direct P2P connections without a paid relay server. We don't run one — it would break the "zero hosting cost" design.
+If you get **"Could not connect to party — relay at &lt;url&gt; is unreachable":**
 
-If you get **"Could not connect to party — your network may be blocking P2P connections":**
+1. **Check your internet connection.** The relay is a WebSocket over outbound `wss://` (TCP 443). Most networks allow this without any extra setup.
+2. **Confirm the relay is up.** The repo's `RelayUrl` default is a placeholder; the person who built your copy of the app should have replaced it with their own deployed `wss://gph-relay.<them>.workers.dev`. If they haven't, the app can't connect anywhere. See **Relay** below.
+3. **Override the URL locally.** Edit `%AppData%\GamePartyHud\config.json` and set `"RelayUrl": "wss://your-relay.example.com"` to point at a different deployment.
 
-1. **Enable UPnP** on your router (sometimes labelled "Open NAT"). Most consumer routers have this in the web admin under *Advanced → UPnP*. This resolves the majority of cases.
-2. **Use a gaming VPN** like [ZeroTier](https://www.zerotier.com) or [Radmin VPN](https://www.radmin-vpn.com). Each player installs it and joins the same virtual network, which sidesteps NAT entirely.
-3. **Use your own TURN server** (advanced). Edit `%AppData%\GamePartyHud\config.json` and add:
-   ```json
-   "CustomTurnUrl": "turn:your-server.example.com:3478",
-   "CustomTurnUsername": "user",
-   "CustomTurnCredential": "pass"
-   ```
-   You can self-host [coturn](https://github.com/coturn/coturn) on a cheap VPS.
+---
+
+## Relay
+
+Party messages are routed through a Cloudflare Worker in [`relay/`](relay/). To
+deploy your own (one-time, by the repo maintainer):
+
+```bash
+cd relay
+npm install
+npx wrangler login
+npx wrangler deploy
+```
+
+Copy the deployed URL (e.g. `https://gph-relay.you.workers.dev`) and update
+`AppConfig.DefaultRelayUrl` in `src/GamePartyHud/Config/AppConfig.cs` (or the
+`RelayUrl` field in each user's `config.json`), replacing `https://` with
+`wss://`.
+
+Costs: well within the Cloudflare free tier for hobbyist usage. See
+[`relay/README.md`](relay/README.md) for setup details and
+[`docs/superpowers/specs/2026-04-22-reliability-scalability-review.md`](docs/superpowers/specs/2026-04-22-reliability-scalability-review.md)
+for the design rationale.
 
 ---
 
@@ -128,9 +144,9 @@ Each player runs an identical copy of the app. On a 3-second timer, it:
 
 1. Grabs a small screenshot of the calibrated HP-bar region.
 2. Measures the red-fill percentage using HSV color matching.
-3. Broadcasts `{ nickname, role, hp% }` to every other party member via a WebRTC data channel.
+3. Broadcasts `{ nickname, role, hp% }` to every other party member through a stateless WebSocket relay (one Cloudflare Durable Object per party id).
 
-No centralized server holds any party data. Players find each other through free, pre-existing signaling infrastructure (public BitTorrent trackers as the primary rendezvous, PeerJS public cloud as a fallback) — those services only help the initial handshake and never see the HP data itself.
+The relay only fans out messages — nothing about the party is persisted. The last member to disconnect evicts the in-memory party state.
 
 Detailed design: [`docs/superpowers/specs/`](docs/superpowers/specs/)
 Product requirements: [`docs/requirements.md`](docs/requirements.md)

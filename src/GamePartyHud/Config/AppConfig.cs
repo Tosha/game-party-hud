@@ -12,10 +12,16 @@ public sealed record AppConfig(
     bool HudLocked,
     string? LastPartyId,
     int PollIntervalMs,
-    string? CustomTurnUrl,
-    string? CustomTurnUsername,
-    string? CustomTurnCredential)
+    string RelayUrl)
 {
+    /// <summary>
+    /// Default relay endpoint — the production Cloudflare Worker deployed
+    /// from <c>relay/</c>. Override per-machine via the <c>RelayUrl</c> field
+    /// in <c>%AppData%\GamePartyHud\config.json</c> if you've stood up your
+    /// own copy of the relay.
+    /// </summary>
+    public const string DefaultRelayUrl = "wss://gph-relay.zemskovsantons.workers.dev";
+
     public static AppConfig Defaults { get; } = new(
         HpCalibration: null,
         NicknameRegion: null,
@@ -25,9 +31,7 @@ public sealed record AppConfig(
         HudLocked: true,
         LastPartyId: null,
         PollIntervalMs: 3000,
-        CustomTurnUrl: null,
-        CustomTurnUsername: null,
-        CustomTurnCredential: null);
+        RelayUrl: DefaultRelayUrl);
 }
 
 public sealed record HudPosition(double X, double Y, int Monitor);

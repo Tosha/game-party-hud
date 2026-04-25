@@ -1,0 +1,23 @@
+name = "gph-relay"
+main = "src/worker.ts"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+[[durable_objects.bindings]]
+name = "PARTY_ROOM"
+class_name = "PartyRoom"
+
+[[migrations]]
+tag = "v1"
+# SQLite-backed storage is the default (and only option on Workers Free) for
+# new Durable Object classes. The Hibernation API uses sqlite under the hood,
+# so we need this rather than the legacy `new_classes`.
+new_sqlite_classes = ["PartyRoom"]
+
+# [limits] is intentionally omitted: Workers Free rejects deploys that try to
+# set custom CPU limits (you get the platform default of 10 ms / request,
+# which is plenty for our handlers). Workers Paid users who want a custom
+# cap can add `[limits] cpu_ms = N` here without other code changes.
+
+[placement]
+mode = "smart"

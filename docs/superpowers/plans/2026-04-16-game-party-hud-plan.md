@@ -1,5 +1,7 @@
 # Game Party HUD Implementation Plan
 
+> **⚠ Superseded for networking.** Tasks and type references in this plan for the `Network/` folder — PeerNetwork, BitTorrentSignaling, SIPSorcery, TurnCreds — are no longer current. See [the rewrite plan](2026-04-22-websocket-relay-rewrite.md). Non-network sections (capture, party, HUD, config, tray) are still accurate.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build a Windows tray app that shows a peer-to-peer party HUD with live HP bars read from the screen, with zero backend cost, shippable as a signed single-file release.

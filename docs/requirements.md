@@ -37,7 +37,7 @@ Gamers who play together in small-to-medium groups (up to 20 people) in games th
 2. Players join a party by entering the code — no account, no password, no invite link.
 3. Up to **20 players** can be in one party.
 4. The first player to create a party is the **leader**. The leader can kick members; leadership transfers automatically if the leader leaves.
-5. There is **no centralized server** holding party data. Players' apps communicate directly with each other.
+5. There is **no centralized server storing party data**. A stateless WebSocket relay (free-tier Cloudflare Worker) routes messages between players; nothing about the party is persisted server-side. The relay is stateless between reconnects — closing the last member's connection evicts the in-memory party.
 6. Party IDs do not need to be remembered — the app can rejoin the last party in one click after a restart, and users can copy the current ID to clipboard from the tray menu.
 
 ### Individual setup (per player)

@@ -240,33 +240,30 @@ public partial class App : Application, MainWindow.IController
 
         Log.Info($"Joining party '{partyId}'.");
 
-        // 20 random bytes rendered as 40-char lower-case hex. On the tracker wire
-        // BitTorrentSignaling re-encodes this as 20 raw Latin-1 bytes (WebTorrent
-        // peer_id convention); internally everywhere else we carry the hex form.
+        // 20 random bytes rendered as 40-char lower-case hex. The relay uses
+        // this string opaquely as the peer's identity on the wire; the rest of
+        // the app uses it as a stable id throughout the party's lifetime.
         var selfPeerBytes = new byte[20];
         RandomNumberGenerator.Fill(selfPeerBytes);
         var selfPeer = Convert.ToHexString(selfPeerBytes).ToLowerInvariant();
-        var signaling = new BitTorrentSignaling();
-        var turn = _config.CustomTurnUrl is { Length: > 0 } url
-            ? new PeerNetwork.TurnCreds(url, _config.CustomTurnUsername, _config.CustomTurnCredential)
-            : null;
-        if (turn is not null) Log.Info($"Using custom TURN URL: {turn.Url}");
 
-        var net = new PeerNetwork(selfPeer, signaling, turn);
+        var relayUri = new Uri($"{_config.RelayUrl.TrimEnd('/')}/party/{Uri.EscapeDataString(partyId)}");
+        var net = new RelayClient(selfPeer, relayUri);
         net.OnPeerConnected    += id => { Log.Info($"Peer connected: {id}"); PartyStateChanged?.Invoke(); };
         net.OnPeerDisconnected += id => { Log.Info($"Peer disconnected: {id}"); PartyStateChanged?.Invoke(); };
+        // PartyOrchestrator's ctor subscribes to OnMessage below — don't double-subscribe here.
 
         try
         {
-            await signaling.JoinAsync(partyId, selfPeer, CancellationToken.None);
+            await net.JoinAsync(CancellationToken.None);
         }
         catch (Exception ex)
         {
-            Log.Error($"Signaling join failed for party '{partyId}'.", ex);
+            Log.Error($"Relay join failed for party '{partyId}'.", ex);
             MessageBox.Show(
-                "Could not connect to party — your network may be blocking P2P connections. " +
-                "See README.md / docs/requirements.md for workarounds " +
-                "(UPnP / open NAT, gaming VPN, or a custom TURN URL in the config file).",
+                $"Could not connect to party '{partyId}' — relay at {_config.RelayUrl} is unreachable. "
+                + "Check your internet connection; if the problem persists, ask the person who built "
+                + "this copy of Game Party HUD whether the relay URL in config.json is still correct.",
                 "Game Party HUD", MessageBoxButton.OK, MessageBoxImage.Warning);
             await net.DisposeAsync();
             return;

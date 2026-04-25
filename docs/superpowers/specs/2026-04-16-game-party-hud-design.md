@@ -3,6 +3,8 @@
 **Date:** 2026-04-16
 **Status:** Approved — ready for implementation planning
 
+> **⚠ Architecture superseded.** The WebRTC-mesh + BitTorrent-tracker signaling described in this spec was replaced on 2026-04-22 by a WebSocket relay. See [the reliability review](2026-04-22-reliability-scalability-review.md) for reasoning and [the rewrite plan](../plans/2026-04-22-websocket-relay-rewrite.md) for the new architecture. Sections below that refer to PeerNetwork, SIPSorcery, ISignalingProvider, or the tracker protocol no longer reflect the code.
+
 ---
 
 ## 1. Overview
