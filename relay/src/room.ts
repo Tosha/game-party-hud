@@ -46,7 +46,10 @@ export class PartyRoom {
       return new Response("expected WebSocket upgrade", { status: 426 });
     }
     const pair = new WebSocketPair();
-    const [client, server] = Object.values(pair);
+    // WebSocketPair always returns exactly two sockets; the `!` placates
+    // tsconfig's `noUncheckedIndexedAccess`.
+    const client = pair[0]!;
+    const server = pair[1]!;
     this.state.acceptWebSocket(server);
     return new Response(null, { status: 101, webSocket: client });
   }

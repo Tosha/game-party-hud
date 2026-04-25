@@ -11,6 +11,7 @@ env:
 
 jobs:
   build-and-test:
+    name: client (.NET 8 / WPF)
     runs-on: windows-latest
 
     steps:
@@ -30,3 +31,30 @@ jobs:
 
       - name: Test
         run: dotnet test --configuration Release --no-build --verbosity normal
+
+  relay-test:
+    name: relay (TypeScript / Workers)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: relay
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: relay/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
