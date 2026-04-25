@@ -109,7 +109,7 @@ The tray menu also has:
 If you get **"Could not connect to party — relay at &lt;url&gt; is unreachable":**
 
 1. **Check your internet connection.** The relay is a WebSocket over outbound `wss://` (TCP 443). Most networks allow this without any extra setup.
-2. **Confirm the relay is up.** The repo's `RelayUrl` default is a placeholder; the person who built your copy of the app should have replaced it with their own deployed `wss://gph-relay.<them>.workers.dev`. If they haven't, the app can't connect anywhere. See **Relay** below.
+2. **Confirm the relay is up.** The repo's `RelayUrl` default is a placeholder; the person who built your copy of the app should have replaced it with their own deployed `wss://<their-worker>.<their-subdomain>.workers.dev`. If they haven't, the app can't connect anywhere. See **Relay** below.
 3. **Override the URL locally.** Edit `%AppData%\GamePartyHud\config.json` and set `"RelayUrl": "wss://your-relay.example.com"` to point at a different deployment.
 
 ---
@@ -123,13 +123,17 @@ deploy your own (one-time, by the repo maintainer):
 cd relay
 npm install
 npx wrangler login
-npx wrangler deploy
+npx wrangler deploy --name <your-worker-name>
 ```
 
-Copy the deployed URL (e.g. `https://gph-relay.you.workers.dev`) and update
-`AppConfig.DefaultRelayUrl` in `src/GamePartyHud/Config/AppConfig.cs` (or the
-`RelayUrl` field in each user's `config.json`), replacing `https://` with
-`wss://`.
+The `--name` flag overrides the placeholder in `wrangler.toml`; the live
+worker name stays out of public source. Save your chosen name (something
+with a random suffix is harder for bots to probe) in your password manager.
+
+Copy the deployed URL (e.g. `https://<your-worker-name>.<you>.workers.dev`),
+swap `https://` for `wss://`, and store it as the **`GPH_RELAY_URL`** repo
+secret in GitHub Actions. The next tagged release will bake that URL into
+the published `.exe` automatically — no source-code change needed.
 
 Costs: well within the Cloudflare free tier for hobbyist usage. See
 [`relay/README.md`](relay/README.md) for setup details and
@@ -243,12 +247,12 @@ Requirements: [Node.js](https://nodejs.org/) ≥ 20 and a free [Cloudflare accou
 ```bash
 cd relay
 npm install
-npm test                  # vitest + Miniflare, runs the full server suite locally
-npm run dev               # wrangler dev — local server on http://localhost:8787
-npx wrangler deploy       # publish to your Cloudflare account
+npm test                                       # vitest + Miniflare, runs the full server suite locally
+npm run dev                                    # wrangler dev — local server on http://localhost:8787
+npx wrangler deploy --name <your-worker-name>  # publish to your Cloudflare account
 ```
 
-After your first deploy, paste the `wss://gph-relay.<you>.workers.dev` URL into `AppConfig.DefaultRelayUrl` (or each user's `config.json`) so the client knows where to connect. Full walkthrough — including Cloudflare account creation — is in [`relay/README.md`](relay/README.md).
+After your first deploy, store the `wss://<your-worker-name>.<your-subdomain>.workers.dev` URL as the `GPH_RELAY_URL` repo secret in GitHub Actions. The next tagged release will bake it into the published `.exe` automatically. Full walkthrough — including Cloudflare account creation — is in [`relay/README.md`](relay/README.md).
 
 ---
 

@@ -15,13 +15,13 @@ do any of this — they just run the `.exe` you ship them.
 
 1. Create a free Cloudflare account (≈ 3 min, no credit card).
 2. Authenticate `wrangler` (the Cloudflare CLI) on your dev machine (≈ 2 min, browser-based).
-3. Deploy this folder as a Worker (≈ 1 min, one command).
-4. Paste the resulting URL into `AppConfig.cs` (or each user's `config.json`) so
-   the client knows where to connect.
-5. Smoke-test it from the command line.
+3. Pick a worker name and deploy this folder (≈ 1 min, one command).
+4. Smoke-test it from the command line.
+5. Store the resulting URL as the `GPH_RELAY_URL` repo secret in GitHub
+   Actions — the next tagged release will bake it into the published `.exe`.
 
 The whole thing is well under 10 minutes the first time. Subsequent re-deploys
-are a single `npx wrangler deploy` from this folder.
+are a single `npx wrangler deploy --name <your-worker-name>` from this folder.
 
 ---
 
@@ -112,11 +112,13 @@ are silent.
 
 ## Step 5 — Deploy
 
-Still inside the `relay/` folder:
+Still inside the `relay/` folder. **Pick a worker name and pass it via `--name`** so the real production name stays out of source. Pick something with a random suffix to make casual probing harder, e.g. `my-relay-7f3a`:
 
 ```bash
-npx wrangler deploy
+npx wrangler deploy --name my-relay-7f3a
 ```
+
+The `name = "..."` field in `wrangler.toml` is a deliberate placeholder; the `--name` flag overrides it. Save the real name in your password manager — you'll need it for every future deploy.
 
 What it prints (annotated):
 
@@ -128,15 +130,16 @@ Worker Startup Time: 5 ms
 Your worker has access to the following bindings:
 - Durable Objects:
   - PARTY_ROOM: PartyRoom
-Uploaded gph-relay (1.2 sec)
-Published gph-relay (5.4 sec)
-  https://gph-relay.<your-subdomain>.workers.dev    ← copy this line
+Uploaded my-relay-7f3a (1.2 sec)
+Published my-relay-7f3a (5.4 sec)
+  https://my-relay-7f3a.<your-subdomain>.workers.dev    ← copy this line
 Current Deployment ID: ...
 ```
 
-**Copy the `https://gph-relay.<your-subdomain>.workers.dev` URL.** Your
-"subdomain" is auto-generated from your Cloudflare account email the first
-time you deploy any Worker; it's stable across re-deploys.
+**Copy the `https://<your-worker-name>.<your-subdomain>.workers.dev` URL.**
+Your account "subdomain" is auto-generated from your Cloudflare account email
+the first time you deploy any Worker; it's stable across re-deploys. The
+worker-name segment is whatever you passed to `--name`.
 
 If wrangler refuses to deploy with a message about "Workers paid plan required
 for Durable Objects" or similar, see the [Troubleshooting](#troubleshooting)
@@ -157,7 +160,7 @@ npm install -g wscat
 Connect:
 
 ```bash
-wscat -c wss://gph-relay.<your-subdomain>.workers.dev/party/SMOKE
+wscat -c wss://<your-worker-name>.<your-subdomain>.workers.dev/party/SMOKE
 ```
 
 **Note the `wss://` scheme** (not `https://`) and the `/party/SMOKE` path. Once
@@ -179,37 +182,44 @@ That's it — the relay is live and routing. Press `Ctrl+C` in `wscat` to discon
 
 ## Step 7 — Tell Game Party HUD where the relay lives
 
-Two ways:
+The C# build reads the relay URL from a GitHub Actions secret named
+`GPH_RELAY_URL`. The release workflow injects that value into the `.exe` at
+build time via an MSBuild property; nothing about the URL is committed in
+source.
 
-### A. Bake it into the build (recommended for the maintainer)
+### A. Bake it into the next release (recommended for the maintainer)
 
-Edit `src/GamePartyHud/Config/AppConfig.cs` and replace the placeholder:
+1. Open <https://github.com/Tosha/game-party-hud/settings/secrets/actions>.
+2. Click **New repository secret** (or **Update** if `GPH_RELAY_URL` already
+   exists from a previous deploy).
+3. Name: `GPH_RELAY_URL`
+4. Value: your URL with the `wss://` scheme, e.g.
+   `wss://<your-worker-name>.<your-subdomain>.workers.dev`
+5. Save.
 
-```csharp
-public const string DefaultRelayUrl = "wss://gph-relay.example.workers.dev";
-```
-
-with your real URL — note the `wss://` scheme:
-
-```csharp
-public const string DefaultRelayUrl = "wss://gph-relay.<your-subdomain>.workers.dev";
-```
-
-Rebuild the app, ship the resulting `.exe` to your players. Their config.json
-will pick up the new default automatically.
+The next time you push a `v<semver>` tag, `release.yml` runs:
+- A guard step that fails fast if `GPH_RELAY_URL` is empty.
+- `dotnet publish ... -p:RelayUrl=${env:GPH_RELAY_URL}`, which embeds the URL
+  as an `[AssemblyMetadata("RelayUrl", "...")]` attribute on the published
+  binary.
+- At runtime the C# `AppConfig.DefaultRelayUrl` reads that attribute via
+  reflection. Players who download the new release get the correct URL with
+  no source-code change in the repo.
 
 ### B. Per-machine override (no rebuild needed)
 
-Each user can edit `%AppData%\GamePartyHud\config.json` (Windows) and add:
+Useful for testing a new deploy before shipping a release, or for users on a
+fork who want to point at a different relay. Each user edits
+`%AppData%\GamePartyHud\config.json` (Windows) and sets:
 
 ```json
 {
-  "relayUrl": "wss://gph-relay.<your-subdomain>.workers.dev"
+  "relayUrl": "wss://<your-worker-name>.<your-subdomain>.workers.dev"
 }
 ```
 
-The app reads this on startup and uses it instead of the compiled-in default.
-Useful for testing a new deploy without re-shipping a binary.
+The app reads this on startup and uses it instead of the compiled-in
+default.
 
 ---
 
@@ -237,13 +247,15 @@ Cloudflare's current pricing: <https://developers.cloudflare.com/workers/platfor
 
 ## Re-deploying after code changes
 
+Pass the same `--name` you used at first deploy:
+
 ```bash
 cd relay
-npx wrangler deploy
+npx wrangler deploy --name <your-worker-name>
 ```
 
 Same URL, new code. Connected clients keep their existing connections; new
-connections hit the new code. Roll back with `npx wrangler rollback` if something
+connections hit the new code. Roll back with `npx wrangler rollback --name <your-worker-name>` if something
 breaks.
 
 ---
