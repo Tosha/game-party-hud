@@ -132,4 +132,19 @@ describe("PartyRoom", () => {
     expect(await a.next()).toEqual({ type: "error", reason: "message-too-large" });
     a.socket.close();
   });
+
+  it("rejects non-party URLs with 404", async () => {
+    const r = await SELF.fetch("http://example.com/healthcheck");
+    expect(r.status).toBe(404);
+  });
+
+  it("rejects party IDs containing invalid characters with 404", async () => {
+    const r = await SELF.fetch("http://example.com/party/hello world", { headers: { Upgrade: "websocket" } });
+    expect(r.status).toBe(404);
+  });
+
+  it("rejects non-upgrade GETs to /party/:id with 426", async () => {
+    const r = await SELF.fetch("http://example.com/party/ABC");
+    expect(r.status).toBe(426);
+  });
 });
