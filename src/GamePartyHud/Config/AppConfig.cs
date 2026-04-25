@@ -15,11 +15,12 @@ public sealed record AppConfig(
     string RelayUrl)
 {
     /// <summary>
-    /// Default relay endpoint. Replace with your deployed
-    /// <c>wss://...workers.dev</c> URL from <c>relay/</c> before building the
-    /// shipped executable (or override via <c>config.json</c> at runtime).
+    /// Default relay endpoint — the production Cloudflare Worker deployed
+    /// from <c>relay/</c>. Override per-machine via the <c>RelayUrl</c> field
+    /// in <c>%AppData%\GamePartyHud\config.json</c> if you've stood up your
+    /// own copy of the relay.
     /// </summary>
-    public const string DefaultRelayUrl = "wss://gph-relay.example.workers.dev";
+    public const string DefaultRelayUrl = "wss://gph-relay.zemskovsantons.workers.dev";
 
     public static AppConfig Defaults { get; } = new(
         HpCalibration: null,
