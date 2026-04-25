@@ -9,7 +9,10 @@ class_name = "PartyRoom"
 
 [[migrations]]
 tag = "v1"
-new_classes = ["PartyRoom"]
+# SQLite-backed storage is the default (and only option on Workers Free) for
+# new Durable Object classes. The Hibernation API uses sqlite under the hood,
+# so we need this rather than the legacy `new_classes`.
+new_sqlite_classes = ["PartyRoom"]
 
 [limits]
 cpu_ms = 50
