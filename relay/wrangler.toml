@@ -14,8 +14,10 @@ tag = "v1"
 # so we need this rather than the legacy `new_classes`.
 new_sqlite_classes = ["PartyRoom"]
 
-[limits]
-cpu_ms = 50
+# [limits] is intentionally omitted: Workers Free rejects deploys that try to
+# set custom CPU limits (you get the platform default of 10 ms / request,
+# which is plenty for our handlers). Workers Paid users who want a custom
+# cap can add `[limits] cpu_ms = N` here without other code changes.
 
 [placement]
 mode = "smart"
