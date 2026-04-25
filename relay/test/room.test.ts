@@ -41,4 +41,35 @@ describe("PartyRoom", () => {
     expect(msg).toEqual({ type: "welcome", peerId: "peer-a", members: [] });
     socket.close();
   });
+
+  it("informs existing members when a new peer joins, and includes their ids in the newcomer's welcome", async () => {
+    const a = await openAndJoin("PARTY2", "peer-a");
+    expect(await a.next()).toEqual({ type: "welcome", peerId: "peer-a", members: [] });
+
+    const b = await openAndJoin("PARTY2", "peer-b");
+    expect(await b.next()).toEqual({ type: "welcome", peerId: "peer-b", members: ["peer-a"] });
+    expect(await a.next()).toEqual({ type: "peer-joined", peerId: "peer-b" });
+
+    const c = await openAndJoin("PARTY2", "peer-c");
+    const welcomeC = await c.next();
+    expect(welcomeC.type).toBe("welcome");
+    expect((welcomeC as { members: string[] }).members.sort()).toEqual(["peer-a", "peer-b"]);
+    expect(await a.next()).toEqual({ type: "peer-joined", peerId: "peer-c" });
+    expect(await b.next()).toEqual({ type: "peer-joined", peerId: "peer-c" });
+
+    a.socket.close();
+    b.socket.close();
+    c.socket.close();
+  });
+
+  it("broadcasts peer-left when a member disconnects", async () => {
+    const a = await openAndJoin("PARTY3", "peer-a");
+    const b = await openAndJoin("PARTY3", "peer-b");
+    await a.next(); await a.next(); // welcome + peer-joined
+    await b.next(); // welcome
+
+    b.socket.close();
+    expect(await a.next()).toEqual({ type: "peer-left", peerId: "peer-b" });
+    a.socket.close();
+  });
 });

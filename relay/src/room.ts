@@ -56,17 +56,30 @@ export class PartyRoom {
       ws.serializeAttachment({ peerId: newPeerId });
       this.members.set(newPeerId, { socket: ws, peerId: newPeerId });
       this.send(ws, { type: "welcome", peerId: newPeerId, members: existingMembers });
+      this.broadcastExcept(newPeerId, { type: "peer-joined", peerId: newPeerId });
     }
   }
 
   async webSocketClose(ws: WebSocket, _code: number, _reason: string, _wasClean: boolean): Promise<void> {
     const peerId = this.peerIdOf(ws);
-    if (peerId !== null) this.members.delete(peerId);
+    if (peerId === null) return;
+    this.members.delete(peerId);
+    this.broadcastExcept(peerId, { type: "peer-left", peerId });
   }
 
   async webSocketError(ws: WebSocket, _error: unknown): Promise<void> {
     const peerId = this.peerIdOf(ws);
-    if (peerId !== null) this.members.delete(peerId);
+    if (peerId === null) return;
+    this.members.delete(peerId);
+    this.broadcastExcept(peerId, { type: "peer-left", peerId });
+  }
+
+  private broadcastExcept(excludePeerId: string, msg: ServerMessage): void {
+    const encoded = encodeServerMessage(msg);
+    for (const m of this.members.values()) {
+      if (m.peerId === excludePeerId) continue;
+      try { m.socket.send(encoded); } catch { /* dead socket; close event will clean up */ }
+    }
   }
 
   private peerIdOf(ws: WebSocket): string | null {
