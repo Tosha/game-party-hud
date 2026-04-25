@@ -78,26 +78,70 @@ public sealed class RelayClient : IAsyncDisposable
             {
                 int total = 0;
                 WebSocketReceiveResult r;
-                do
+                try
                 {
-                    r = await ws.ReceiveAsync(new ArraySegment<byte>(buf, total, buf.Length - total), ct).ConfigureAwait(false);
-                    total += r.Count;
-                    if (total >= buf.Length) break;
-                } while (!r.EndOfMessage);
+                    do
+                    {
+                        r = await ws.ReceiveAsync(new ArraySegment<byte>(buf, total, buf.Length - total), ct).ConfigureAwait(false);
+                        total += r.Count;
+                        if (total >= buf.Length) break;
+                    } while (!r.EndOfMessage);
+                }
+                catch (OperationCanceledException) { return; }
+                catch (Exception ex)
+                {
+                    Log.Warn($"RelayClient: receive error — {ex.Message}; reconnecting.");
+                    _ = Task.Run(() => ReconnectLoopAsync(ct));
+                    return;
+                }
 
-                if (r.MessageType == WebSocketMessageType.Close) break;
+                if (r.MessageType == WebSocketMessageType.Close)
+                {
+                    Log.Info("RelayClient: server closed the socket; reconnecting.");
+                    try { await ws.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "ack", CancellationToken.None).ConfigureAwait(false); } catch { }
+                    _ = Task.Run(() => ReconnectLoopAsync(ct));
+                    return;
+                }
                 var text = Encoding.UTF8.GetString(buf, 0, total);
                 Dispatch(text);
             }
         }
-        catch (OperationCanceledException) { }
-        catch (Exception ex)
-        {
-            Log.Warn($"RelayClient: read loop ended — {ex.Message}");
-        }
         finally
         {
             ArrayPool<byte>.Shared.Return(buf);
+        }
+    }
+
+    // Monotonic backoff: 500 ms, 1 s, 2 s, 4 s, then cap at 8 s. Resets on success.
+    private async Task ReconnectLoopAsync(CancellationToken ct)
+    {
+        var delays = new[] { 500, 1_000, 2_000, 4_000, 8_000 };
+        int attempt = 0;
+
+        while (!ct.IsCancellationRequested)
+        {
+            try
+            {
+                _ws?.Dispose();
+                _ws = new ClientWebSocket();
+                _ws.Options.KeepAliveInterval = TimeSpan.FromSeconds(20);
+                await _ws.ConnectAsync(_relayWsUri, ct).ConfigureAwait(false);
+                Log.Info($"RelayClient: reconnected on attempt #{attempt + 1}.");
+                _ = Task.Run(() => ReadLoopAsync(_ws, ct));
+
+                // Re-send the join frame so the server adds us to the roster again.
+                var join = RelayProtocol.EncodeJoin(_selfPeerId);
+                await SendTextAsync(join, ct).ConfigureAwait(false);
+                return;
+            }
+            catch (OperationCanceledException) { return; }
+            catch (Exception ex)
+            {
+                var delay = delays[Math.Min(attempt, delays.Length - 1)];
+                Log.Warn($"RelayClient: reconnect attempt #{attempt + 1} failed — {ex.Message}. Retrying in {delay} ms.");
+                try { await Task.Delay(delay, ct).ConfigureAwait(false); } catch (OperationCanceledException) { return; }
+                attempt++;
+            }
         }
     }
 

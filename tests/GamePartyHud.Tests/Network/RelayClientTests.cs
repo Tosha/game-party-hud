@@ -134,4 +134,26 @@ public class RelayClientTests
 
         await client.DisposeAsync();
     }
+
+    [Fact(Timeout = 20_000)]
+    public async Task ReadLoop_ServerCloses_ReconnectsAndResendsJoin()
+    {
+        await using var server = new FakeRelayServer();
+        var client = new RelayClient(PeerA, new Uri(server.WsUrl));
+
+        var joinTask = client.JoinAsync(CancellationToken.None);
+        Assert.Equal("""{"type":"join","peerId":"a5bdd9f976fe4da6a5dc11035522d1ddbeefcafe"}""",
+            await server.NextReceivedAsync(TimeSpan.FromSeconds(5)));
+        await server.SendFromServerAsync("""{"type":"welcome","peerId":"a5bdd9f976fe4da6a5dc11035522d1ddbeefcafe","members":[]}""");
+        await joinTask;
+
+        // Server abruptly closes. Client should reconnect and re-send the join frame.
+        await server.CloseFromServerAsync();
+
+        // Second join frame arrives on a new socket.
+        var rejoin = await server.NextReceivedAsync(TimeSpan.FromSeconds(15));
+        Assert.Equal("""{"type":"join","peerId":"a5bdd9f976fe4da6a5dc11035522d1ddbeefcafe"}""", rejoin);
+
+        await client.DisposeAsync();
+    }
 }
