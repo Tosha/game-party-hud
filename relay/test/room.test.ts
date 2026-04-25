@@ -95,4 +95,41 @@ describe("PartyRoom", () => {
 
     a.socket.close(); b.socket.close(); c.socket.close();
   });
+
+  it("rejects a 26th joiner with party-full and closes the socket", async () => {
+    const sockets: WebSocket[] = [];
+    for (let i = 0; i < 25; i++) {
+      const p = await openAndJoin("FULL", `peer-${i}`);
+      expect((await p.next()).type).toBe("welcome");
+      sockets.push(p.socket);
+    }
+
+    const overflow = await openAndJoin("FULL", "peer-26");
+    const err = await overflow.next();
+    expect(err).toEqual({ type: "error", reason: "party-full" });
+
+    for (const s of sockets) s.close();
+    overflow.socket.close();
+  });
+
+  it("rejects a duplicate peerId with duplicate-peer", async () => {
+    const a1 = await openAndJoin("DUPE", "peer-dup");
+    expect((await a1.next()).type).toBe("welcome");
+
+    const a2 = await openAndJoin("DUPE", "peer-dup");
+    expect(await a2.next()).toEqual({ type: "error", reason: "duplicate-peer" });
+
+    a1.socket.close(); a2.socket.close();
+  });
+
+  it("rejects a broadcast larger than 4 KiB with message-too-large", async () => {
+    const a = await openAndJoin("BIG", "peer-a");
+    expect((await a.next()).type).toBe("welcome");
+
+    const payload = "x".repeat(5000);
+    a.socket.send(JSON.stringify({ type: "broadcast", payload }));
+
+    expect(await a.next()).toEqual({ type: "error", reason: "message-too-large" });
+    a.socket.close();
+  });
 });

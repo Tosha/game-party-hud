@@ -36,6 +36,10 @@ export class PartyRoom {
 
   async webSocketMessage(ws: WebSocket, raw: string | ArrayBuffer): Promise<void> {
     const text = typeof raw === "string" ? raw : "";
+    if (text.length > 4096) {
+      this.send(ws, { type: "error", reason: "message-too-large" });
+      return;
+    }
     const msg = decodeClientMessage(text);
     if (!msg) return;
 
