@@ -34,11 +34,17 @@ public sealed class ConfigStore
         try
         {
             var json = File.ReadAllText(_path);
-            return JsonSerializer.Deserialize<AppConfig>(json, _opts) ?? AppConfig.Defaults;
+            var raw = JsonSerializer.Deserialize<AppConfig>(json, _opts) ?? AppConfig.Defaults;
+            // Migrate legacy config.json (pre-relay rewrite) — the missing RelayUrl
+            // would otherwise leave the field null and blow up at use-site.
+            if (string.IsNullOrWhiteSpace(raw.RelayUrl))
+            {
+                raw = raw with { RelayUrl = AppConfig.DefaultRelayUrl };
+            }
+            return raw;
         }
         catch (Exception)
         {
-            // Corrupted file: move it aside and return defaults so the app can keep running.
             try { File.Move(_path, _path + ".bad-" + DateTime.UtcNow.Ticks, overwrite: true); } catch { }
             return AppConfig.Defaults;
         }

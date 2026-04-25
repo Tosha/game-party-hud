@@ -42,9 +42,7 @@ public class ConfigStoreTests : IDisposable
             HudLocked = false,
             LastPartyId = "X7K2P9",
             PollIntervalMs = 2500,
-            CustomTurnUrl = "turn:example.com:3478",
-            CustomTurnUsername = "user",
-            CustomTurnCredential = "pass"
+            RelayUrl = "wss://relay.example.com"
         };
         store.Save(cfg);
         Assert.Equal(cfg, store.Load());

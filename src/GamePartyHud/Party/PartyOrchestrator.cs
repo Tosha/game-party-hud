@@ -27,7 +27,7 @@ public sealed class PartyOrchestrator : IAsyncDisposable
     private readonly HpBarAnalyzer _analyzer = new();
     private readonly HpSmoother _smoother = new(windowSize: 3);
     private readonly PartyState _state;
-    private readonly PeerNetwork _net;
+    private readonly RelayClient _net;
     private readonly AppConfig _cfg;
     private readonly string _selfPeerId;
     private readonly long _joinedAt;
@@ -44,7 +44,7 @@ public sealed class PartyOrchestrator : IAsyncDisposable
         AppConfig cfg,
         IScreenCapture capture,
         PartyState state,
-        PeerNetwork net,
+        RelayClient net,
         string selfPeerId)
     {
         _cfg = cfg;

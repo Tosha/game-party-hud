@@ -12,10 +12,15 @@ public sealed record AppConfig(
     bool HudLocked,
     string? LastPartyId,
     int PollIntervalMs,
-    string? CustomTurnUrl,
-    string? CustomTurnUsername,
-    string? CustomTurnCredential)
+    string RelayUrl)
 {
+    /// <summary>
+    /// Default relay endpoint. Replace with your deployed
+    /// <c>wss://...workers.dev</c> URL from <c>relay/</c> before building the
+    /// shipped executable (or override via <c>config.json</c> at runtime).
+    /// </summary>
+    public const string DefaultRelayUrl = "wss://gph-relay.example.workers.dev";
+
     public static AppConfig Defaults { get; } = new(
         HpCalibration: null,
         NicknameRegion: null,
@@ -25,9 +30,7 @@ public sealed record AppConfig(
         HudLocked: true,
         LastPartyId: null,
         PollIntervalMs: 3000,
-        CustomTurnUrl: null,
-        CustomTurnUsername: null,
-        CustomTurnCredential: null);
+        RelayUrl: DefaultRelayUrl);
 }
 
 public sealed record HudPosition(double X, double Y, int Monitor);
