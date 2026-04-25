@@ -18,6 +18,23 @@
     <Copyright>See LICENSE</Copyright>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <!--
+      Build-time relay URL injection. Local dev builds inherit the placeholder
+      below; release builds in CI override via `dotnet publish -p:RelayUrl=wss://...`,
+      sourced from the GPH_RELAY_URL GitHub Actions secret in release.yml.
+      The source tree must NEVER pin a specific deploy here.
+    -->
+    <RelayUrl Condition="'$(RelayUrl)' == ''">wss://gph-relay.example.workers.dev</RelayUrl>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>RelayUrl</_Parameter1>
+      <_Parameter2>$(RelayUrl)</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="System.Drawing.Common" Version="8.0.10" />
     <PackageReference Include="WPF-UI" Version="3.0.5" />
