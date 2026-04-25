@@ -163,4 +163,28 @@ describe("PartyRoom", () => {
     const r = await SELF.fetch("http://example.com/party/ABC");
     expect(r.status).toBe(426);
   });
+
+  it("rejects upgrade requests carrying a non-allowlisted Origin header with 403", async () => {
+    // A browser-page WebSocket attempt always sets Origin to the page's URL
+    // and can't be told not to. Our desktop client never sends Origin. Any
+    // request with an Origin we don't allowlist is therefore unwelcome.
+    const r = await SELF.fetch("http://example.com/party/ABC", {
+      headers: {
+        Upgrade: "websocket",
+        Origin: "https://attacker.example.com",
+      },
+    });
+    expect(r.status).toBe(403);
+  });
+
+  it("accepts upgrade requests with no Origin header (desktop client shape)", async () => {
+    // The existing welcome-test path goes through here too, but pin it
+    // explicitly so a regression to 'Origin required' is caught immediately.
+    const r = await SELF.fetch("http://example.com/party/ABC", {
+      headers: { Upgrade: "websocket" },
+    });
+    expect(r.status).toBe(101);
+    r.webSocket?.accept();
+    r.webSocket?.close();
+  });
 });
