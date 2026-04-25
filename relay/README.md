@@ -112,11 +112,13 @@ are silent.
 
 ## Step 5 — Deploy
 
-Still inside the `relay/` folder:
+Still inside the `relay/` folder. **Pick a worker name and pass it via `--name`** so the real production name stays out of source. Pick something with a random suffix to make casual probing harder, e.g. `my-relay-7f3a`:
 
 ```bash
-npx wrangler deploy
+npx wrangler deploy --name my-relay-7f3a
 ```
+
+The `name = "..."` field in `wrangler.toml` is a deliberate placeholder; the `--name` flag overrides it. Save the real name in your password manager — you'll need it for every future deploy.
 
 What it prints (annotated):
 
@@ -128,9 +130,9 @@ Worker Startup Time: 5 ms
 Your worker has access to the following bindings:
 - Durable Objects:
   - PARTY_ROOM: PartyRoom
-Uploaded gph-relay (1.2 sec)
-Published gph-relay (5.4 sec)
-  https://gph-relay.<your-subdomain>.workers.dev    ← copy this line
+Uploaded my-relay-7f3a (1.2 sec)
+Published my-relay-7f3a (5.4 sec)
+  https://my-relay-7f3a.<your-subdomain>.workers.dev    ← copy this line
 Current Deployment ID: ...
 ```
 
@@ -237,13 +239,15 @@ Cloudflare's current pricing: <https://developers.cloudflare.com/workers/platfor
 
 ## Re-deploying after code changes
 
+Pass the same `--name` you used at first deploy:
+
 ```bash
 cd relay
-npx wrangler deploy
+npx wrangler deploy --name <your-worker-name>
 ```
 
 Same URL, new code. Connected clients keep their existing connections; new
-connections hit the new code. Roll back with `npx wrangler rollback` if something
+connections hit the new code. Roll back with `npx wrangler rollback --name <your-worker-name>` if something
 breaks.
 
 ---

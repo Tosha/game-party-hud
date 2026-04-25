@@ -123,13 +123,17 @@ deploy your own (one-time, by the repo maintainer):
 cd relay
 npm install
 npx wrangler login
-npx wrangler deploy
+npx wrangler deploy --name <your-worker-name>
 ```
 
-Copy the deployed URL (e.g. `https://gph-relay.you.workers.dev`) and update
-`AppConfig.DefaultRelayUrl` in `src/GamePartyHud/Config/AppConfig.cs` (or the
-`RelayUrl` field in each user's `config.json`), replacing `https://` with
-`wss://`.
+The `--name` flag overrides the placeholder in `wrangler.toml`; the live
+worker name stays out of public source. Save your chosen name (something
+with a random suffix is harder for bots to probe) in your password manager.
+
+Copy the deployed URL (e.g. `https://<your-worker-name>.<you>.workers.dev`),
+swap `https://` for `wss://`, and store it as the **`GPH_RELAY_URL`** repo
+secret in GitHub Actions. The next tagged release will bake that URL into
+the published `.exe` automatically — no source-code change needed.
 
 Costs: well within the Cloudflare free tier for hobbyist usage. See
 [`relay/README.md`](relay/README.md) for setup details and

@@ -1,4 +1,15 @@
-name = "gph-relay"
+# The `name` field below is a deliberate PLACEHOLDER — it must NOT match the
+# production worker. Real production deploys override it via the CLI:
+#
+#   npx wrangler deploy --name <real-worker-name>
+#
+# This keeps the live worker name (and therefore its public *.workers.dev URL)
+# out of public source. The real name lives in your password manager and the
+# GPH_RELAY_URL secret in GitHub Actions (which feeds the client .exe build).
+#
+# `wrangler dev` (local emulator) still uses this placeholder as its sandbox
+# label — fine, it's only a string; nothing reaches Cloudflare.
+name = "gph-relay-placeholder"
 main = "src/worker.ts"
 compatibility_date = "2025-01-01"
 compatibility_flags = ["nodejs_compat"]
