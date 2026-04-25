@@ -72,4 +72,27 @@ describe("PartyRoom", () => {
     expect(await a.next()).toEqual({ type: "peer-left", peerId: "peer-b" });
     a.socket.close();
   });
+
+  it("relays a broadcast from A to B and C, but not back to A", async () => {
+    const a = await openAndJoin("PARTY4", "peer-a");
+    const b = await openAndJoin("PARTY4", "peer-b");
+    const c = await openAndJoin("PARTY4", "peer-c");
+
+    // Drain welcome + peer-joined noise
+    await a.next(); await a.next(); await a.next();
+    await b.next(); await b.next();
+    await c.next();
+
+    a.socket.send(JSON.stringify({ type: "broadcast", payload: "hello" }));
+
+    expect(await b.next()).toEqual({ type: "message", fromPeerId: "peer-a", payload: "hello" });
+    expect(await c.next()).toEqual({ type: "message", fromPeerId: "peer-a", payload: "hello" });
+
+    // A must NOT receive its own echo. Send a second broadcast from B and confirm
+    // A's next message is B's broadcast, not A's earlier one.
+    b.socket.send(JSON.stringify({ type: "broadcast", payload: "world" }));
+    expect(await a.next()).toEqual({ type: "message", fromPeerId: "peer-b", payload: "world" });
+
+    a.socket.close(); b.socket.close(); c.socket.close();
+  });
 });

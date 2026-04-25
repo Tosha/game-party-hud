@@ -58,6 +58,16 @@ export class PartyRoom {
       this.send(ws, { type: "welcome", peerId: newPeerId, members: existingMembers });
       this.broadcastExcept(newPeerId, { type: "peer-joined", peerId: newPeerId });
     }
+
+    if (msg.type === "broadcast") {
+      const peerId = this.peerIdOf(ws);
+      if (peerId === null) return; // ignore until joined
+      this.broadcastExcept(peerId, {
+        type: "message",
+        fromPeerId: peerId,
+        payload: msg.payload,
+      });
+    }
   }
 
   async webSocketClose(ws: WebSocket, _code: number, _reason: string, _wasClean: boolean): Promise<void> {
