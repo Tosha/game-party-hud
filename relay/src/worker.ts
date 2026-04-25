@@ -1,14 +1,20 @@
+export { PartyRoom } from "./room";
+
+interface Env {
+  PARTY_ROOM: DurableObjectNamespace;
+}
+
+const PARTY_PATH = /^\/party\/([A-Za-z0-9_-]{1,32})$/;
+
 export default {
-  async fetch(_request: Request, _env: unknown): Promise<Response> {
-    return new Response("not implemented", { status: 501 });
+  async fetch(request: Request, env: Env): Promise<Response> {
+    const url = new URL(request.url);
+    const match = PARTY_PATH.exec(url.pathname);
+    if (!match) return new Response("not found", { status: 404 });
+
+    const partyId = match[1]!;
+    const id = env.PARTY_ROOM.idFromName(partyId);
+    const stub = env.PARTY_ROOM.get(id);
+    return stub.fetch(request);
   },
 };
-
-// Exported so wrangler's migrations resolve the class name. Actual implementation
-// lands in Task 4 onwards.
-export class PartyRoom {
-  constructor(_state: DurableObjectState, _env: unknown) {}
-  async fetch(_request: Request): Promise<Response> {
-    return new Response("not implemented", { status: 501 });
-  }
-}
