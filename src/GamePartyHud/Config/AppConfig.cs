@@ -1,3 +1,5 @@
+using System.Linq;
+using System.Reflection;
 using GamePartyHud.Capture;
 using GamePartyHud.Party;
 
@@ -15,12 +17,24 @@ public sealed record AppConfig(
     string RelayUrl)
 {
     /// <summary>
-    /// Default relay endpoint — the production Cloudflare Worker deployed
-    /// from <c>relay/</c>. Override per-machine via the <c>RelayUrl</c> field
-    /// in <c>%AppData%\GamePartyHud\config.json</c> if you've stood up your
-    /// own copy of the relay.
+    /// Default relay endpoint, injected at build time via the
+    /// <c>RelayUrl</c> MSBuild property (see <c>GamePartyHud.csproj</c>). Local
+    /// dev builds inherit the <c>example.workers.dev</c> placeholder; release
+    /// builds in CI substitute the real URL from the <c>GPH_RELAY_URL</c>
+    /// GitHub Actions secret. End users override per-machine via the
+    /// <c>RelayUrl</c> field in <c>%AppData%\GamePartyHud\config.json</c>.
     /// </summary>
-    public const string DefaultRelayUrl = "wss://gph-relay.zemskovsantons.workers.dev";
+    public static string DefaultRelayUrl { get; } = ResolveDefaultRelayUrl();
+
+    private static string ResolveDefaultRelayUrl()
+    {
+        var fromMetadata = typeof(AppConfig).Assembly
+            .GetCustomAttributes<AssemblyMetadataAttribute>()
+            .FirstOrDefault(a => a.Key == "RelayUrl")
+            ?.Value;
+        if (!string.IsNullOrWhiteSpace(fromMetadata)) return fromMetadata;
+        return "wss://gph-relay.example.workers.dev";
+    }
 
     public static AppConfig Defaults { get; } = new(
         HpCalibration: null,

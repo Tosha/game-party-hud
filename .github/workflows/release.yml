@@ -30,7 +30,20 @@ jobs:
       - name: Test
         run: dotnet test GamePartyHud.sln -c Release --no-build --verbosity normal
 
+      - name: Verify relay URL secret is configured
+        shell: pwsh
+        env:
+          GPH_RELAY_URL: ${{ secrets.GPH_RELAY_URL }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:GPH_RELAY_URL)) {
+            Write-Error "GPH_RELAY_URL secret is not configured. Aborting release to avoid shipping the placeholder relay URL."
+            exit 1
+          }
+          Write-Host "GPH_RELAY_URL is set; proceeding with release."
+
       - name: Publish
+        env:
+          GPH_RELAY_URL: ${{ secrets.GPH_RELAY_URL }}
         run: >
           dotnet publish src/GamePartyHud/GamePartyHud.csproj
           -c Release
@@ -38,6 +51,7 @@ jobs:
           --self-contained true
           -p:PublishSingleFile=true
           -p:IncludeNativeLibrariesForSelfExtract=true
+          "-p:RelayUrl=${env:GPH_RELAY_URL}"
 
       - name: Zip release
         shell: pwsh
