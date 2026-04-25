@@ -115,4 +115,23 @@ public class RelayClientTests
 
         await client.DisposeAsync();
     }
+
+    [Fact(Timeout = 10_000)]
+    public async Task BroadcastAsync_SendsBroadcastFrameWithPayload()
+    {
+        await using var server = new FakeRelayServer();
+        var client = new RelayClient(PeerA, new Uri(server.WsUrl));
+
+        var joinTask = client.JoinAsync(CancellationToken.None);
+        await server.NextReceivedAsync(TimeSpan.FromSeconds(5));
+        await server.SendFromServerAsync("""{"type":"welcome","peerId":"a5bdd9f976fe4da6a5dc11035522d1ddbeefcafe","members":[]}""");
+        await joinTask;
+
+        await client.BroadcastAsync("""{"type":"state","hp":0.5}""");
+
+        var frame = await server.NextReceivedAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal("""{"type":"broadcast","payload":"{\"type\":\"state\",\"hp\":0.5}"}""", frame);
+
+        await client.DisposeAsync();
+    }
 }
