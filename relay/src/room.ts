@@ -7,9 +7,15 @@ import {
 interface Member {
   socket: WebSocket;
   peerId: string;
+  // Leaky-bucket rate limit: capacity 20, refill 10/s. Stored per-member so a
+  // single noisy peer can't starve others.
+  rlTokens: number;
+  rlLastRefillMs: number;
 }
 
 const MAX_PEERS = 25;
+const RL_CAPACITY = 20;
+const RL_REFILL_PER_MS = 10 / 1000; // 10 tokens per second.
 
 export class PartyRoom {
   private state: DurableObjectState;
@@ -18,9 +24,20 @@ export class PartyRoom {
   constructor(state: DurableObjectState, _env: unknown) {
     this.state = state;
     // Rebuild in-memory roster from any hibernating sockets after a DO restart.
+    // Rate-limit buckets reset to full on rebuild — a hibernated client gets a
+    // fresh burst budget when the DO wakes up. That's a reasonable price for
+    // not having to persist bucket state.
+    const now = Date.now();
     for (const ws of this.state.getWebSockets()) {
       const peerId = this.peerIdOf(ws);
-      if (peerId !== null) this.members.set(peerId, { socket: ws, peerId });
+      if (peerId !== null) {
+        this.members.set(peerId, {
+          socket: ws,
+          peerId,
+          rlTokens: RL_CAPACITY,
+          rlLastRefillMs: now,
+        });
+      }
     }
   }
 
@@ -58,7 +75,12 @@ export class PartyRoom {
       const newPeerId = msg.peerId;
       const existingMembers = [...this.members.keys()];
       ws.serializeAttachment({ peerId: newPeerId });
-      this.members.set(newPeerId, { socket: ws, peerId: newPeerId });
+      this.members.set(newPeerId, {
+        socket: ws,
+        peerId: newPeerId,
+        rlTokens: RL_CAPACITY,
+        rlLastRefillMs: Date.now(),
+      });
       this.send(ws, { type: "welcome", peerId: newPeerId, members: existingMembers });
       this.broadcastExcept(newPeerId, { type: "peer-joined", peerId: newPeerId });
     }
@@ -66,12 +88,31 @@ export class PartyRoom {
     if (msg.type === "broadcast") {
       const peerId = this.peerIdOf(ws);
       if (peerId === null) return; // ignore until joined
+      const member = this.members.get(peerId);
+      if (member === undefined) return;
+      if (!this.consumeRateLimitToken(member)) {
+        this.send(ws, { type: "error", reason: "rate-limit" });
+        return;
+      }
       this.broadcastExcept(peerId, {
         type: "message",
         fromPeerId: peerId,
         payload: msg.payload,
       });
     }
+  }
+
+  /// Refill the member's leaky bucket to current time and try to spend one
+  /// token. Returns true if the broadcast is allowed; false if it should be
+  /// rejected with "rate-limit".
+  private consumeRateLimitToken(member: Member): boolean {
+    const now = Date.now();
+    const elapsed = Math.max(0, now - member.rlLastRefillMs);
+    member.rlTokens = Math.min(RL_CAPACITY, member.rlTokens + elapsed * RL_REFILL_PER_MS);
+    member.rlLastRefillMs = now;
+    if (member.rlTokens < 1) return false;
+    member.rlTokens -= 1;
+    return true;
   }
 
   async webSocketClose(ws: WebSocket, _code: number, _reason: string, _wasClean: boolean): Promise<void> {

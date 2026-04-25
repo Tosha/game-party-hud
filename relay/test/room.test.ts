@@ -133,6 +133,22 @@ describe("PartyRoom", () => {
     a.socket.close();
   });
 
+  it("rejects bursts above the rate-limit token bucket capacity", async () => {
+    // Per-peer bucket: capacity 20, refill 10/s. Sending 21 broadcasts in
+    // immediate succession exhausts the burst budget before any meaningful
+    // refill can happen — the 21st must come back as rate-limit.
+    const a = await openAndJoin("RATE", "peer-a");
+    expect((await a.next()).type).toBe("welcome");
+
+    for (let i = 0; i < 21; i++) {
+      a.socket.send(JSON.stringify({ type: "broadcast", payload: `m${i}` }));
+    }
+
+    // First server-to-A frame after the burst is the rate-limit error.
+    expect(await a.next()).toEqual({ type: "error", reason: "rate-limit" });
+    a.socket.close();
+  });
+
   it("rejects non-party URLs with 404", async () => {
     const r = await SELF.fetch("http://example.com/healthcheck");
     expect(r.status).toBe(404);
