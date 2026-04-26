@@ -46,6 +46,12 @@ public partial class App : Application, MainWindow.IController
     void MainWindow.IController.UpdateConfig(AppConfig cfg)
     {
         _config = cfg;
+        // Push the new config into the orchestrator so changes to the user's
+        // nickname / role / poll interval / calibration are reflected in the
+        // very next broadcast tick — both on the local HUD and on the wire to
+        // other peers. Without this, _orch holds a stale snapshot from when
+        // the party was joined and the UI's edits don't reach teammates.
+        _orch?.UpdateConfig(cfg);
         try { _store?.Save(_config); }
         catch (Exception ex) { Log.Error("Failed to persist config.", ex); }
     }
