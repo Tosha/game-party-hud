@@ -187,4 +187,46 @@ describe("PartyRoom", () => {
     r.webSocket?.accept();
     r.webSocket?.close();
   });
+
+  it("rejects party-wide bursts above the global token bucket capacity", async () => {
+    // Per-party bucket: capacity 100, refill 50/s. With 7 peers each sending
+    // 16 broadcasts in rapid succession (16 × 7 = 112 > 100, while 16 < the
+    // per-peer cap of 20), the party bucket must trip before any per-peer
+    // bucket does. At least one peer should see a rate-limit error.
+    const peers: Array<{ socket: WebSocket; next: () => Promise<ServerMessage> }> = [];
+    for (let i = 0; i < 7; i++) {
+      peers.push(await openAndJoin("GLOBALRL", `peer-${i}`));
+    }
+
+    // Burst broadcasts across all peers in round-robin. We don't drain the
+    // welcome / peer-joined / message-from-other-peer frames first; the
+    // search below filters by message type, so they're harmless noise.
+    for (let round = 0; round < 16; round++) {
+      for (const p of peers) {
+        p.socket.send(JSON.stringify({ type: "broadcast", payload: `r${round}` }));
+      }
+    }
+
+    // Each peer's inbox after the burst contains O(100) fan-out messages
+    // from the other peers' successful broadcasts plus, for any peer whose
+    // broadcast tripped the cap, a rate-limit error. Drain generously and
+    // search for any rate-limit error across all peers.
+    let foundRateLimit = false;
+    outer: for (const p of peers) {
+      for (let i = 0; i < 300; i++) {
+        const msg = await Promise.race([
+          p.next(),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 200)),
+        ]);
+        if (msg === null) break;
+        if (msg.type === "error" && (msg as { reason: string }).reason === "rate-limit") {
+          foundRateLimit = true;
+          break outer;
+        }
+      }
+    }
+    expect(foundRateLimit).toBe(true);
+
+    for (const p of peers) p.socket.close();
+  });
 });
