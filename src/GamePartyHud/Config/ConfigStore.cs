@@ -35,16 +35,21 @@ public sealed class ConfigStore
         {
             var json = File.ReadAllText(_path);
             var raw = JsonSerializer.Deserialize<AppConfig>(json, _opts) ?? AppConfig.Defaults;
-            // Migrate legacy config.json (pre-relay rewrite) — the missing RelayUrl
-            // would otherwise leave the field null and blow up at use-site.
-            if (string.IsNullOrWhiteSpace(raw.RelayUrl))
-            {
-                raw = raw with { RelayUrl = AppConfig.DefaultRelayUrl };
-            }
-            return raw;
+
+            // RelayUrl is owned by the binary, not by per-machine config.
+            // Always promote the build-time default (set by the GPH_RELAY_URL
+            // GitHub Actions secret at publish time) over whatever's
+            // persisted on disk. This prevents a once-saved URL from
+            // shadowing future binary rotations — the symptom we hit when
+            // config.json kept routing the app to a deleted Worker after
+            // the gph-relay → game-relay-* rotation. Forks that need a
+            // different URL set their own GPH_RELAY_URL secret and rebuild;
+            // there is no per-machine config.json override.
+            return raw with { RelayUrl = AppConfig.DefaultRelayUrl };
         }
         catch (Exception)
         {
+            // Corrupted file: move it aside and return defaults so the app can keep running.
             try { File.Move(_path, _path + ".bad-" + DateTime.UtcNow.Ticks, overwrite: true); } catch { }
             return AppConfig.Defaults;
         }
@@ -52,7 +57,11 @@ public sealed class ConfigStore
 
     public void Save(AppConfig config)
     {
-        var json = JsonSerializer.Serialize(config, _opts);
+        // Don't persist RelayUrl. Load always overrides it with the
+        // build-time default, so writing it here would just make
+        // config.json look authoritative when it isn't and confuse anyone
+        // who opens the file to debug a connectivity issue.
+        var json = JsonSerializer.Serialize(config with { RelayUrl = "" }, _opts);
         var tmp = _path + ".tmp";
         File.WriteAllText(tmp, json);
         File.Move(tmp, _path, overwrite: true);
