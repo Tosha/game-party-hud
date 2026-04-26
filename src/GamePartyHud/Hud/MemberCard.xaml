@@ -18,17 +18,15 @@
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <!-- Role glyph tile (30% smaller than the previous 26px tile) -->
+            <!-- Role glyph tile (30% smaller than the previous 26px tile).
+                 Border + background brushes are role-coloured, supplied by
+                 HudMember from RoleBrushes. Glyph stays white for legibility
+                 against the per-role coloured gradient. -->
             <Border Grid.Column="0" Width="18" Height="18" Margin="0,0,4,0"
                     VerticalAlignment="Center"
                     CornerRadius="2"
-                    BorderBrush="#55E12A2A" BorderThickness="1">
-                <Border.Background>
-                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                        <GradientStop Color="#44E12A2A" Offset="0"/>
-                        <GradientStop Color="#332A1515" Offset="1"/>
-                    </LinearGradientBrush>
-                </Border.Background>
+                    BorderBrush="{Binding RoleBorderBrush}" BorderThickness="1"
+                    Background="{Binding RoleBackgroundBrush}">
                 <TextBlock Text="{Binding RoleGlyph}"
                            Foreground="#FFF2F2F2"
                            FontSize="10"
