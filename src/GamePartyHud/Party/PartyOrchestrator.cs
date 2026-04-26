@@ -17,12 +17,6 @@ namespace GamePartyHud.Party;
 /// </summary>
 public sealed class PartyOrchestrator : IAsyncDisposable
 {
-    // When the raw HP reading changes by more than this between ticks, treat the
-    // drop/spike as suspicious and auto-save a forensic capture (rate-limited).
-    private const float SuspiciousHpJump = 0.20f;
-    // Minimum gap between auto-saves so a genuinely erratic series doesn't spam the log folder.
-    private static readonly TimeSpan MinAutoSaveInterval = TimeSpan.FromSeconds(30);
-
     private readonly IScreenCapture _capture;
     private readonly HpBarAnalyzer _analyzer = new();
     private readonly HpSmoother _smoother = new(windowSize: 3);
@@ -36,8 +30,6 @@ public sealed class PartyOrchestrator : IAsyncDisposable
     private readonly long _joinedAt;
     private CancellationTokenSource? _loopCts;
 
-    private float? _previousRaw;
-    private DateTimeOffset _lastAutoSave = DateTimeOffset.MinValue;
     private int _tickCounter;
 
     public string SelfPeerId => _selfPeerId;
@@ -129,8 +121,6 @@ public sealed class PartyOrchestrator : IAsyncDisposable
                     hp = _smoother.Push(raw);
 
                     LogTick(cal, bgra, raw, hp.Value);
-                    await MaybeAutoForensicAsync(raw).ConfigureAwait(false);
-                    _previousRaw = raw;
                 }
 
                 long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
@@ -189,28 +179,6 @@ public sealed class PartyOrchestrator : IAsyncDisposable
             $"region={w}x{h}@({cal.Region.X},{cal.Region.Y}) " +
             $"cols {pass}/{partial}/{empty} pass/partial/empty; " +
             $"mid-HSV H={midAvg.H:F0}° S={midAvg.S:F2} V={midAvg.V:F2}");
-    }
-
-    private async Task MaybeAutoForensicAsync(float raw)
-    {
-        if (_previousRaw is not { } prev) return;
-        float jump = Math.Abs(raw - prev);
-        if (jump < SuspiciousHpJump) return;
-
-        var now = DateTimeOffset.UtcNow;
-        if (now - _lastAutoSave < MinAutoSaveInterval) return;
-        _lastAutoSave = now;
-
-        Log.Warn($"PartyOrchestrator: suspicious HP jump from {prev:F3} to {raw:F3} (Δ={jump:F3}); saving forensic capture.");
-        try
-        {
-            await CaptureDiagnostic.RunAsync(_cfg, _capture, reason: $"auto-jump-{prev:F2}->{raw:F2}")
-                .ConfigureAwait(false);
-        }
-        catch (Exception ex)
-        {
-            Log.Warn($"PartyOrchestrator: forensic capture failed — {ex.Message}");
-        }
     }
 
     private async Task StaleTickLoopAsync(CancellationToken ct)
