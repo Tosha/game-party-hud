@@ -28,7 +28,10 @@ public sealed class PartyOrchestrator : IAsyncDisposable
     private readonly HpSmoother _smoother = new(windowSize: 3);
     private readonly PartyState _state;
     private readonly RelayClient _net;
-    private readonly AppConfig _cfg;
+    // _cfg is mutable so that nickname / role / poll-interval / calibration
+    // changes from the UI propagate into the broadcast loop without
+    // recreating the orchestrator. Updated via <see cref="UpdateConfig"/>.
+    private AppConfig _cfg;
     private readonly string _selfPeerId;
     private readonly long _joinedAt;
     private CancellationTokenSource? _loopCts;
@@ -54,6 +57,20 @@ public sealed class PartyOrchestrator : IAsyncDisposable
         _selfPeerId = selfPeerId;
         _joinedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         _net.OnMessage += OnPeerMessage;
+    }
+
+    /// <summary>
+    /// Replace the orchestrator's view of <see cref="AppConfig"/>. Called by
+    /// <c>App.xaml.cs</c> whenever the user edits their nickname, role,
+    /// HP-bar calibration, or poll interval from the UI. The next broadcast
+    /// tick (≤ <see cref="AppConfig.PollIntervalMs"/> later) will use the
+    /// new values, both for the locally-applied self-state on the HUD and
+    /// for the <c>StateMessage</c> sent to other peers.
+    /// </summary>
+    public void UpdateConfig(AppConfig cfg)
+    {
+        _cfg = cfg;
+        Log.Info($"PartyOrchestrator: config updated (nickname='{cfg.Nickname}', role={cfg.Role}, pollMs={cfg.PollIntervalMs}).");
     }
 
     private void OnPeerMessage(string fromPeerId, string text)
