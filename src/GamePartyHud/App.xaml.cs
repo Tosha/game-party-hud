@@ -266,10 +266,17 @@ public partial class App : Application, MainWindow.IController
         catch (Exception ex)
         {
             Log.Error($"Relay join failed for party '{partyId}'.", ex);
+            // The dialog deliberately omits the relay URL. The URL is in
+            // %AppData%\GamePartyHud\app.log for diagnosis, but exposing it
+            // in screenshots / shared error messages discloses the live
+            // worker name unnecessarily — a stale .exe pinned to a retired
+            // URL ends up here, and we don't want that retired name pasted
+            // into bug reports.
             MessageBox.Show(
-                $"Could not connect to party '{partyId}' — relay at {_config.RelayUrl} is unreachable. "
-                + "Check your internet connection; if the problem persists, ask the person who built "
-                + "this copy of Game Party HUD whether the relay URL in config.json is still correct.",
+                $"Could not connect to party '{partyId}' — the relay isn't responding. "
+                + "Check your internet connection. If the problem persists, this copy "
+                + "of Game Party HUD may be out of date; ask whoever shared the .exe "
+                + "with you for a newer release.",
                 "Game Party HUD", MessageBoxButton.OK, MessageBoxImage.Warning);
             await net.DisposeAsync();
             return;
