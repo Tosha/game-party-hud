@@ -14,12 +14,17 @@ internal static class HudSmokeHarness
 {
     public const string CliFlag = "--hud-smoke";
 
+    // First six entries are one-of-each-role so launching with `--hud-smoke=6`
+    // shows all six role accent colours on a single screen (sanity check after
+    // tweaks to RoleBrushes).
     private static readonly (string Nick, Role Role, float Hp, bool Stale)[] Seeds =
     {
         ("Yiawahuye",    Role.Tank,      0.72f, false),
         ("Kyrele",       Role.Healer,    1.00f, false),
+        ("Stelis",       Role.Support,   0.66f, false),
         ("Arakh",        Role.MeleeDps,  0.30f, true),
         ("Thal",         Role.RangedDps, 0.85f, false),
+        ("Riven",        Role.Utility,   0.50f, false),
         ("StupidBeast",  Role.Tank,      0.55f, false),
         ("Barrakh",      Role.MeleeDps,  0.10f, false),
         ("ShalfeyHealz", Role.Healer,    0.95f, false),

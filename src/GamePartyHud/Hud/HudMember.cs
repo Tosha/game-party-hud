@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel;
+using System.Windows.Media;
 using GamePartyHud.Party;
 
 namespace GamePartyHud.Hud;
@@ -33,10 +34,18 @@ public sealed class HudMember : INotifyPropertyChanged
             _role = value;
             Raise(nameof(Role));
             Raise(nameof(RoleGlyph));
+            Raise(nameof(RoleBorderBrush));
+            Raise(nameof(RoleBackgroundBrush));
         }
     }
 
     public string RoleGlyph => GamePartyHud.Party.RoleGlyph.For(_role);
+
+    /// <summary>Per-role accent border for the role-tile on the member card.</summary>
+    public Brush RoleBorderBrush => RoleBrushes.BorderFor(_role);
+
+    /// <summary>Per-role accent gradient background for the role-tile.</summary>
+    public Brush RoleBackgroundBrush => RoleBrushes.BackgroundFor(_role);
 
     private float _hpPercent;
     public float HpPercent
