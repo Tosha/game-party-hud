@@ -136,9 +136,25 @@
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="You're in party:"
                                    VerticalAlignment="Center" Opacity="0.85"/>
-                        <Border Background="#22FFFFFF" CornerRadius="4"
+                        <!-- Click anywhere on this badge to copy the party ID.
+                             Hover effect + cursor change advertise that it's
+                             interactive; tooltip names the action explicitly. -->
+                        <Border CornerRadius="4"
                                 Padding="10,4" Margin="10,0,0,0"
-                                BorderBrush="#33FFFFFF" BorderThickness="1">
+                                BorderBrush="#33FFFFFF" BorderThickness="1"
+                                Cursor="Hand"
+                                MouseLeftButtonUp="OnPartyIdClick"
+                                ToolTip="Click to copy">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Background" Value="#22FFFFFF"/>
+                                    <Style.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter Property="Background" Value="#33FFFFFF"/>
+                                        </Trigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
                             <TextBlock x:Name="PartyIdDisplay"
                                        FontFamily="Consolas, Cascadia Mono, monospace"
                                        FontSize="18" FontWeight="Bold"
@@ -158,15 +174,9 @@
                                Text="1 member (you)"/>
 
                     <StackPanel Orientation="Horizontal">
-                        <ui:Button Content="Copy ID"
-                                   Icon="Copy24"
-                                   Appearance="Secondary"
-                                   Padding="14,6"
-                                   Click="OnCopy"/>
                         <ui:Button Content="Leave party"
                                    Icon="SignOut24"
                                    Appearance="Danger"
-                                   Margin="8,0,0,0"
                                    Padding="14,6"
                                    Click="OnLeave"/>
                     </StackPanel>

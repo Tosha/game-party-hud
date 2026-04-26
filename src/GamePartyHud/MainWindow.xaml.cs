@@ -333,7 +333,7 @@ public partial class MainWindow : FluentWindow
         finally { RefreshPartyState(); }
     }
 
-    private void OnCopy(object sender, RoutedEventArgs e)
+    private void OnPartyIdClick(object sender, MouseButtonEventArgs e)
     {
         if (_ctl.CurrentPartyId is { Length: > 0 } id)
         {
