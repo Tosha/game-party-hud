@@ -11,8 +11,14 @@ namespace GamePartyHud.Party;
 /// </summary>
 public sealed class PartyState
 {
-    private const int StaleAfterSec = 6;
-    private const int RemoveAfterSec = 60;
+    // Was 6 sec under the original "broadcast every 3 sec; mark stale on 2
+    // missed broadcasts" cadence. PartyOrchestrator now skips no-op
+    // broadcasts and only sends a heartbeat every 15 sec, so the old
+    // 6-sec threshold flickered live peers stale during quiet periods.
+    // 30 sec ≈ 2 missed heartbeats; 90 sec ≈ 6 missed heartbeats and we
+    // drop the member entirely.
+    private const int StaleAfterSec = 30;
+    private const int RemoveAfterSec = 90;
 
     private readonly Dictionary<string, MemberState> _members = new();
     private readonly HashSet<string> _kicked = new();
