@@ -44,7 +44,7 @@ public sealed record AppConfig(
         HudPosition: new HudPosition(100, 100, 0),
         HudLocked: true,
         LastPartyId: null,
-        PollIntervalMs: 3000,
+        PollIntervalMs: 2000,
         RelayUrl: DefaultRelayUrl);
 }
 
