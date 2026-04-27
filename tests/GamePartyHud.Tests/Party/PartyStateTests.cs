@@ -49,18 +49,18 @@ public class PartyStateTests
     }
 
     [Fact]
-    public void Tick_MarksStaleAfter6s_RemovesAfter60s()
+    public void Tick_MarksStaleAfter30s_RemovesAfter90s()
     {
         var s = new PartyState();
         s.Apply(new StateMessage("p1", "n", Role.Tank, 1f, 100), 100);
 
-        s.Tick(105);
+        s.Tick(125);  // 25 s since last update — under StaleAfterSec (30)
         Assert.False(IsStale(s, "p1"));
 
-        s.Tick(107);
+        s.Tick(132);  // 32 s since last update — at/over StaleAfterSec
         Assert.True(IsStale(s, "p1"));
 
-        s.Tick(170);
+        s.Tick(195);  // 95 s since last update — over RemoveAfterSec (90)
         Assert.False(s.Members.ContainsKey("p1"));
     }
 
@@ -75,10 +75,10 @@ public class PartyStateTests
         s.Changed += () => count++;
         s.Apply(new StateMessage("p1", "n", Role.Tank, 1f, 100), 100);
         Assert.Equal(1, count);
-        s.Tick(107);
+        s.Tick(132);  // crosses StaleAfterSec (30)
         Assert.Equal(2, count);
         // Another tick without transition must not fire.
-        s.Tick(108);
+        s.Tick(133);
         Assert.Equal(2, count);
     }
 
@@ -88,9 +88,9 @@ public class PartyStateTests
         var s = new PartyState();
         int count = 0;
         s.Apply(new StateMessage("p1", "n", Role.Tank, 1f, 100), 100);
-        s.Tick(107); // stale
+        s.Tick(132); // stale
         s.Changed += () => count++;
-        s.Apply(new StateMessage("p1", "n", Role.Tank, 0.5f, 110), 110);
+        s.Apply(new StateMessage("p1", "n", Role.Tank, 0.5f, 140), 140);
         Assert.Equal(1, count);
         Assert.False(IsStale(s, "p1"));
     }
