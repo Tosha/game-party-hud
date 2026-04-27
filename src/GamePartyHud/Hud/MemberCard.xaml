@@ -47,14 +47,17 @@
                         </LinearGradientBrush>
                     </Border.Background>
                 </Border>
-                <!-- Red fill -->
+                <!-- Red fill. Stops are darker than the original #FF3B3B → #C81919
+                     so the white nickname overlay (drop-shadowed) hits at least
+                     WCAG-AA contrast (6.4:1 at the lighter end, 10:1 at the
+                     darker end). Tailwind red-700 → red-900. -->
                 <Border CornerRadius="2"
                         HorizontalAlignment="Left"
                         Width="{Binding HpPercent, Converter={StaticResource HpWidthConverter}, ConverterParameter=174}">
                     <Border.Background>
                         <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                            <GradientStop Color="#FFFF3B3B" Offset="0"/>
-                            <GradientStop Color="#FFC81919" Offset="1"/>
+                            <GradientStop Color="#FFB91C1C" Offset="0"/>
+                            <GradientStop Color="#FF7F1D1D" Offset="1"/>
                         </LinearGradientBrush>
                     </Border.Background>
                 </Border>
