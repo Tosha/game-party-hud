@@ -54,6 +54,13 @@ public partial class MainWindow : FluentWindow
     private readonly IController _ctl;
     private bool _populating;
     private bool _allowClose;
+    // Re-entrancy guard for the Create / Join party flows. Today the
+    // SetPartyActionsBusy(true) call before each await disables both
+    // buttons and WPF won't deliver Click to a disabled Button, so the
+    // user can't double-trigger from the UI. This flag is belt-and-
+    // suspenders for any future code path (tray shortcut, automation)
+    // that calls into these handlers without going through the button.
+    private bool _partyActionInFlight;
 
     private sealed record RoleOption(Role Role, string Glyph, string Label);
 
@@ -236,6 +243,11 @@ public partial class MainWindow : FluentWindow
 
     private async void OnCreate(object sender, RoutedEventArgs e)
     {
+        if (_partyActionInFlight)
+        {
+            Log.Info("MainWindow: Create click ignored — party action already in flight.");
+            return;
+        }
         if (_ctl.CurrentPartyId is { Length: > 0 })
         {
             SetPartyStatus("You're already in a party. Leave it first before creating a new one.",
@@ -244,6 +256,7 @@ public partial class MainWindow : FluentWindow
         }
         if (!ValidateBeforeJoiningParty()) return;
 
+        _partyActionInFlight = true;
         SetPartyStatus("Creating party…", InfoBarSeverity.Informational);
         SetPartyActionsBusy(true, CreateProgress);
         try
@@ -266,6 +279,7 @@ public partial class MainWindow : FluentWindow
         }
         finally
         {
+            _partyActionInFlight = false;
             SetPartyActionsBusy(false, CreateProgress);
             RefreshPartyState();
         }
@@ -273,6 +287,11 @@ public partial class MainWindow : FluentWindow
 
     private async void OnJoin(object sender, RoutedEventArgs e)
     {
+        if (_partyActionInFlight)
+        {
+            Log.Info("MainWindow: Join click ignored — party action already in flight.");
+            return;
+        }
         if (_ctl.CurrentPartyId is { Length: > 0 })
         {
             SetPartyStatus("You're already in a party. Leave it first before joining another.",
@@ -288,6 +307,7 @@ public partial class MainWindow : FluentWindow
         }
         if (!ValidateBeforeJoiningParty()) return;
 
+        _partyActionInFlight = true;
         SetPartyStatus("Joining party " + id + "…", InfoBarSeverity.Informational);
         SetPartyActionsBusy(true, JoinProgress);
         try
@@ -311,6 +331,7 @@ public partial class MainWindow : FluentWindow
         }
         finally
         {
+            _partyActionInFlight = false;
             SetPartyActionsBusy(false, JoinProgress);
             RefreshPartyState();
         }
