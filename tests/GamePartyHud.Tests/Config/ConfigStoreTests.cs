@@ -79,7 +79,7 @@ public class ConfigStoreTests : IDisposable
   "hudLocked": true,
   "lastPartyId": null,
   "pollIntervalMs": 3000,
-  "relayUrl": "wss://some-stale-url.workers.dev"
+  "relayUrl": "wss://some-stale-url.example.invalid"
 }
 """);
 

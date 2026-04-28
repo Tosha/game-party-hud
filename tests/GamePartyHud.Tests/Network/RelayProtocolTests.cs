@@ -5,13 +5,15 @@ using Xunit;
 namespace GamePartyHud.Tests.Network;
 
 /// <summary>
-/// Wire-format parity with relay/test/fixtures.ts. Any change here must be
-/// mirrored on the TypeScript side — the tests on both sides pin the same
-/// canonical JSON strings so the server and client can't drift apart silently.
+/// Wire-format parity with the relay's test fixtures
+/// (https://github.com/Tosha/game-party-hud-server, <c>test/fixtures.ts</c>).
+/// Any change here must be mirrored on the TypeScript side — the tests on
+/// both sides pin the same canonical JSON strings so the server and client
+/// can't drift apart silently.
 /// </summary>
 public class RelayProtocolTests
 {
-    // Exact copies of relay/test/fixtures.ts.
+    // Exact copies of the relay repo's test/fixtures.ts.
     private const string FxJoin       = """{"type":"join","peerId":"a5bdd9f976fe4da6a5dc11035522d1ddbeefcafe"}""";
     private const string FxBroadcast  = """{"type":"broadcast","payload":"{\"type\":\"state\",\"hp\":0.5}"}""";
     private const string FxWelcome    = """{"type":"welcome","peerId":"a5bdd9f976fe4da6a5dc11035522d1ddbeefcafe","members":["peer-b","peer-c"]}""";

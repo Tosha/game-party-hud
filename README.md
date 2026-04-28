@@ -6,7 +6,7 @@
 [![Downloads](https://img.shields.io/github/downloads/Tosha/game-party-hud/total?color=brightgreen)](https://github.com/Tosha/game-party-hud/releases)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2B-0078D6?logo=windows&logoColor=white)](#)
 
-A tiny, free Windows overlay that shows your party's HP bars on top of any game that doesn't have a built-in party UI — share a 6-character code, no accounts, no launchers to install. Party state flows through a tiny WebSocket relay (free-tier Cloudflare Worker) that doesn't store anything about you.
+A tiny, free Windows overlay that shows your party's HP bars on top of any game that doesn't have a built-in party UI — share a 6-character code, no accounts, no launchers to install. Party state flows through a tiny WebSocket relay that doesn't store anything about you.
 
 <p align="center">
   <a href="https://github.com/Tosha/game-party-hud/releases/latest">
@@ -18,7 +18,7 @@ A tiny, free Windows overlay that shows your party's HP bars on top of any game 
 
 - 📦 **Single 180 MB `.exe`** — self-contained, nothing else to install
 - 🪪 **No accounts** — share a 6-character party code
-- 💰 **Free forever** — routes through a stateless WebSocket relay on the Cloudflare Workers free tier (`relay/` in this repo); no accounts to pay for, nothing persisted server-side
+- 💰 **Free forever** — routes through a stateless WebSocket relay; no accounts to pay for, nothing persisted server-side
 - 🖥️ **Windows 10 (1903+) / Windows 11**
 - 🛡️ **Anti-cheat safe** — see below
 
@@ -109,36 +109,8 @@ The tray menu also has:
 If you get **"Could not connect to party — relay at &lt;url&gt; is unreachable":**
 
 1. **Check your internet connection.** The relay is a WebSocket over outbound `wss://` (TCP 443). Most networks allow this without any extra setup.
-2. **Confirm the relay is up.** The repo's `RelayUrl` default is a placeholder; the person who built your copy of the app should have replaced it with their own deployed `wss://<their-worker>.<their-subdomain>.workers.dev`. If they haven't, the app can't connect anywhere. See **Relay** below.
+2. **Confirm the relay is up.** The release `.exe` you downloaded has a relay URL baked in by whoever built it. If their relay is offline, the app can't connect.
 3. **Override the URL locally.** Edit `%AppData%\GamePartyHud\config.json` and set `"RelayUrl": "wss://your-relay.example.com"` to point at a different deployment.
-
----
-
-## Relay
-
-Party messages are routed through a Cloudflare Worker in [`relay/`](relay/). To
-deploy your own (one-time, by the repo maintainer):
-
-```bash
-cd relay
-npm install
-npx wrangler login
-npx wrangler deploy --name <your-worker-name>
-```
-
-The `--name` flag overrides the placeholder in `wrangler.toml`; the live
-worker name stays out of public source. Save your chosen name (something
-with a random suffix is harder for bots to probe) in your password manager.
-
-Copy the deployed URL (e.g. `https://<your-worker-name>.<you>.workers.dev`),
-swap `https://` for `wss://`, and store it as the **`GPH_RELAY_URL`** repo
-secret in GitHub Actions. The next tagged release will bake that URL into
-the published `.exe` automatically — no source-code change needed.
-
-Costs: well within the Cloudflare free tier for hobbyist usage. See
-[`relay/README.md`](relay/README.md) for setup details and
-[`docs/superpowers/specs/2026-04-22-reliability-scalability-review.md`](docs/superpowers/specs/2026-04-22-reliability-scalability-review.md)
-for the design rationale.
 
 ---
 
@@ -148,26 +120,23 @@ Each player runs an identical copy of the app. On a 3-second timer, it:
 
 1. Grabs a small screenshot of the calibrated HP-bar region.
 2. Measures the red-fill percentage using HSV color matching.
-3. Sends `{ nickname, role, hp% }` over a single WebSocket to a Cloudflare Worker. The Worker routes the frame to a Durable Object pinned to the party id, which fans it out to every other connected member.
+3. Sends `{ nickname, role, hp% }` over a single WebSocket to a stateless relay, which fans the frame out to the other connected members of the party.
 
-The relay holds **no party state between sessions** — when the last member disconnects, the Durable Object evicts itself and the party id becomes free again. The wire protocol is documented in [`relay/src/protocol.ts`](relay/src/protocol.ts) and pinned by parity tests on both sides.
+The relay holds **no party state between sessions** — when the last member of a party disconnects, the party id becomes free again. The wire protocol is the contract between client and relay; the C# side mirrors it in [`Network/RelayProtocol.cs`](src/GamePartyHud/Network/RelayProtocol.cs) and parity tests pin the encoding byte-for-byte.
 
 ```
-   peer A                   peer B
-     │                        │
-     │  WebSocket (wss://)    │
-     ▼                        ▼
-  ┌──────────────────────────────┐
-  │  Cloudflare Worker (gph-relay) │
-  │  ┌─────────────────────────┐ │
-  │  │ Durable Object: party A2K9XV │  ← one DO per party id, in-memory only
-  │  │  roster: { A, B }       │ │
-  │  └─────────────────────────┘ │
-  └──────────────────────────────┘
+   peer A                  peer B
+     │                       │
+     │  WebSocket (wss://)   │
+     ▼                       ▼
+  ┌─────────────────────────────┐
+  │   stateless WebSocket relay │
+  │   (one party room per id,   │
+  │    in-memory only)          │
+  └─────────────────────────────┘
 ```
 
 Architecture docs:
-- Current: [reliability review](docs/superpowers/specs/2026-04-22-reliability-scalability-review.md), [WebSocket relay plan](docs/superpowers/plans/2026-04-22-websocket-relay-rewrite.md)
 - Original (P2P design, superseded): [game-party-hud-design.md](docs/superpowers/specs/2026-04-16-game-party-hud-design.md)
 - Product requirements: [`docs/requirements.md`](docs/requirements.md)
 
@@ -183,14 +152,9 @@ Architecture docs:
 - `Windows.Graphics.Capture` + GDI BitBlt for screen pixels
 - xUnit for tests
 
-**Server — `relay/`**
+**Server**
 
-- Cloudflare Workers + Durable Objects, free tier ($0 for hobbyist usage)
-- TypeScript, strict mode
-- WebSocket Hibernation API (Durable Objects doze between messages, cutting billed CPU time)
-- SQLite-backed DOs (no persistent storage actually used; SQLite is required for free-plan DO classes)
-- Vitest + `@cloudflare/vitest-pool-workers` (Miniflare) for tests
-- Per-peer leaky-bucket rate limit (capacity 20, refill 10/s)
+The WebSocket relay is hosted separately and lives in its own repo. The client treats it as an opaque service.
 
 **CI / release**
 
@@ -204,7 +168,7 @@ Architecture docs:
 - **CPU:** under 1% on modern hardware. Measurable floor is the 3-second screen capture (~0.3 ms) + HP calculation (~0.2 ms).
 - **RAM:** ~50–80 MB.
 - **GPU:** effectively zero. The overlay only redraws when state actually changes.
-- **Network:** ~0.5 KB/s per peer pair. State frames are ~120 bytes each; a 5-peer party generates ~85 k requests/day at typical session length, well inside the Cloudflare Workers free quota of 100 k/day. See [`relay/README.md`](relay/README.md#costs) for the scaling math.
+- **Network:** ~0.5 KB/s per peer pair. State frames are ~120 bytes each; a 5-peer party generates ~85 k requests/day at typical session length.
 
 ---
 
@@ -214,7 +178,7 @@ Architecture docs:
 - **Borderless-windowed games only.** Exclusive-fullscreen games can hide the overlay — switch your game to borderless windowed mode.
 - **Horizontal HP bars only.** No vertical or radial support.
 - **No voice chat, no text chat, no stats.** This is a single-purpose utility.
-- **Relay availability gates everything.** If the WebSocket relay (the URL baked into your `.exe` build) is offline, parties can't form. The relay is stateless and free to redeploy in seconds, but it's a dependency the original P2P design avoided.
+- **Relay availability gates everything.** If the WebSocket relay (the URL baked into your `.exe` build) is offline, parties can't form. It's a dependency the original P2P design avoided.
 
 ---
 
@@ -240,19 +204,9 @@ dotnet publish src/GamePartyHud/GamePartyHud.csproj `
   -o publish/
 ```
 
-### Relay (the Cloudflare Worker)
+### Relay
 
-Requirements: [Node.js](https://nodejs.org/) ≥ 20 and a free [Cloudflare account](https://dash.cloudflare.com/sign-up).
-
-```bash
-cd relay
-npm install
-npm test                                       # vitest + Miniflare, runs the full server suite locally
-npm run dev                                    # wrangler dev — local server on http://localhost:8787
-npx wrangler deploy --name <your-worker-name>  # publish to your Cloudflare account
-```
-
-After your first deploy, store the `wss://<your-worker-name>.<your-subdomain>.workers.dev` URL as the `GPH_RELAY_URL` repo secret in GitHub Actions. The next tagged release will bake it into the published `.exe` automatically. Full walkthrough — including Cloudflare account creation — is in [`relay/README.md`](relay/README.md).
+The WebSocket relay is in a separate repository. After deploying it, store the resulting `wss://...` URL as the `GPH_RELAY_URL` repo secret in GitHub Actions; the next tagged release will bake it into the published `.exe` automatically.
 
 ---
 
@@ -262,9 +216,7 @@ Small PRs welcome. Please:
 
 1. Fork and create a feature branch from `main`.
 2. Make your changes.
-3. Ensure both test suites are green:
-   - `dotnet build -c Release && dotnet test` for the client.
-   - `cd relay && npm test` for the server.
+3. Ensure tests are green: `dotnet build -c Release && dotnet test`.
 4. Open a PR against `main`. Describe **what** changed and **why** in the body.
 
 See [`CLAUDE.md`](CLAUDE.md) for the project's conventions (Conventional Commits, testing philosophy, architecture rules).

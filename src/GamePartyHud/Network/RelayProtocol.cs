@@ -7,10 +7,10 @@ namespace GamePartyHud.Network;
 
 /// <summary>
 /// Wire contract between the C# <see cref="RelayClient"/> and the TypeScript
-/// Cloudflare Worker in the repo's <c>relay/</c> folder. Keep in lockstep with
-/// <c>relay/src/protocol.ts</c>; the canonical JSON strings live in
-/// <c>relay/test/fixtures.ts</c> and are mirrored verbatim in this project's
-/// <c>RelayProtocolTests</c>.
+/// relay server (separate repo: https://github.com/Tosha/game-party-hud-server).
+/// Keep in lockstep with that repo's <c>src/protocol.ts</c>; the canonical JSON
+/// strings live in its <c>test/fixtures.ts</c> and are mirrored verbatim in
+/// this project's <c>RelayProtocolTests</c>.
 /// </summary>
 public static class RelayProtocol
 {
@@ -21,7 +21,7 @@ public static class RelayProtocol
     public sealed record Message(string FromPeerId, string Payload)            : ServerMessage;
     public sealed record ErrorMessage(string Reason)                           : ServerMessage;
 
-    // Serializer options chosen so the output matches relay/test/fixtures.ts
+    // Serializer options chosen so the output matches the relay's test fixtures
     // byte-for-byte: camelCase (web default), no whitespace, and the relaxed
     // JS encoder so a quote inside the payload is escaped as \" — matching
     // JSON.stringify in the TS server. The default System.Text.Json encoder

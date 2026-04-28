@@ -150,8 +150,8 @@ public sealed class PartyOrchestrator : IAsyncDisposable
                 _state.Apply(new StateMessage(_selfPeerId, _cfg.Nickname, _cfg.Role, hp, now), now);
 
                 // Decide whether to actually broadcast to peers. Each WebSocket
-                // message costs one Cloudflare DO request inbound here PLUS one
-                // per recipient on the fan-out side, so suppressing no-op
+                // message costs one relay request inbound here PLUS one per
+                // recipient on the fan-out side, so suppressing no-op
                 // broadcasts (HP unchanged within threshold, role/nick same as
                 // last sent) compounds with party size. A heartbeat enforces a
                 // floor so receivers don't mark us stale during quiet stretches.
