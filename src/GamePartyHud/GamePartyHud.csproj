@@ -25,7 +25,7 @@
       sourced from the GPH_RELAY_URL GitHub Actions secret in release.yml.
       The source tree must NEVER pin a specific deploy here.
     -->
-    <RelayUrl Condition="'$(RelayUrl)' == ''">wss://gph-relay.example.workers.dev</RelayUrl>
+    <RelayUrl Condition="'$(RelayUrl)' == ''">wss://relay.example.invalid</RelayUrl>
   </PropertyGroup>
 
   <ItemGroup>

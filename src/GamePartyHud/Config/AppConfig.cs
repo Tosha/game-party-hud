@@ -19,10 +19,10 @@ public sealed record AppConfig(
     /// <summary>
     /// Default relay endpoint, injected at build time via the
     /// <c>RelayUrl</c> MSBuild property (see <c>GamePartyHud.csproj</c>). Local
-    /// dev builds inherit the <c>example.workers.dev</c> placeholder; release
-    /// builds in CI substitute the real URL from the <c>GPH_RELAY_URL</c>
-    /// GitHub Actions secret. End users override per-machine via the
-    /// <c>RelayUrl</c> field in <c>%AppData%\GamePartyHud\config.json</c>.
+    /// dev builds inherit the placeholder default; release builds in CI
+    /// substitute the real URL from the <c>GPH_RELAY_URL</c> GitHub Actions
+    /// secret. End users override per-machine via the <c>RelayUrl</c> field
+    /// in <c>%AppData%\GamePartyHud\config.json</c>.
     /// </summary>
     public static string DefaultRelayUrl { get; } = ResolveDefaultRelayUrl();
 
@@ -33,7 +33,7 @@ public sealed record AppConfig(
             .FirstOrDefault(a => a.Key == "RelayUrl")
             ?.Value;
         if (!string.IsNullOrWhiteSpace(fromMetadata)) return fromMetadata;
-        return "wss://gph-relay.example.workers.dev";
+        return "wss://relay.example.invalid";
     }
 
     public static AppConfig Defaults { get; } = new(

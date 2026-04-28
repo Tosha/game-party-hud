@@ -1,6 +1,6 @@
 # Game Party HUD Implementation Plan
 
-> **⚠ Superseded for networking.** Tasks and type references in this plan for the `Network/` folder — PeerNetwork, BitTorrentSignaling, SIPSorcery, TurnCreds — are no longer current. See [the rewrite plan](2026-04-22-websocket-relay-rewrite.md). Non-network sections (capture, party, HUD, config, tray) are still accurate.
+> **⚠ Superseded for networking.** Tasks and type references in this plan for the `Network/` folder — PeerNetwork, BitTorrentSignaling, SIPSorcery, TurnCreds — are no longer current. The current architecture is documented in the [relay server repo](https://github.com/Tosha/game-party-hud-server) under its `docs/` folder. Non-network sections (capture, party, HUD, config, tray) are still accurate.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

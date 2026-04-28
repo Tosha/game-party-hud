@@ -2,12 +2,12 @@
 
 ## What this project is
 
-Windows-only WPF tray app that displays a peer-to-peer party HUD with live HP bars read from the screen. See `docs/requirements.md` for the product overview and `docs/superpowers/specs/2026-04-16-game-party-hud-design.md` for the technical design.
+Windows-only WPF tray app that displays a party HUD with live HP bars read from the screen. See `docs/requirements.md` for the product overview and `docs/superpowers/specs/2026-04-16-game-party-hud-design.md` for the technical design.
 
 ## Hard constraints
 
 1. **Windows-only.** Target framework is `net8.0-windows10.0.19041.0`. Do not add cross-platform abstractions.
-2. **Free-tier hosting only.** The message relay is a Cloudflare Worker in `relay/` deployed to a free Cloudflare account; no paid services. If you think we need a paid tier or a long-term background service, stop and raise the design question first.
+2. **Free-tier hosting only.** The message relay is hosted in a separate repo on a free tier; no paid services. If you think we need a paid tier or a long-term background service, stop and raise the design question first.
 3. **No DirectX / Vulkan hooking, no reading the game's memory, no process injection.** The app only reads screen pixels and draws on top. Anti-cheat friendliness is a hard requirement.
 4. **Performance budget:** <1% CPU, <1% GPU, <100 MB RAM while a game is running. Validate with a manual 8-hour run before tagging a release.
 5. **Nullability is enabled and warnings are errors.** Fix, don't suppress.

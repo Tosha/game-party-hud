@@ -41,10 +41,10 @@ public sealed class ConfigStore
             // GitHub Actions secret at publish time) over whatever's
             // persisted on disk. This prevents a once-saved URL from
             // shadowing future binary rotations — the symptom we hit when
-            // config.json kept routing the app to a deleted Worker after
-            // the gph-relay → game-relay-* rotation. Forks that need a
-            // different URL set their own GPH_RELAY_URL secret and rebuild;
-            // there is no per-machine config.json override.
+            // config.json kept routing the app to a deleted relay endpoint
+            // after a server rename. Forks that need a different URL set
+            // their own GPH_RELAY_URL secret and rebuild; there is no
+            // per-machine config.json override.
             return raw with { RelayUrl = AppConfig.DefaultRelayUrl };
         }
         catch (Exception)
