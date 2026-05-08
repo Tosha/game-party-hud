@@ -59,7 +59,7 @@ public sealed class BarAnalyzer
             && hsv.V <= MissingMaxValue;
     }
 
-    public float Analyze(ReadOnlySpan<byte> bgra, int width, int height, HpCalibration cal)
+    public float Analyze(ReadOnlySpan<byte> bgra, int width, int height, BarCalibration cal)
     {
         if (width <= 0 || height <= 0) return 0f;
         if (bgra.Length < width * height * 4) throw new ArgumentException("bgra too small", nameof(bgra));

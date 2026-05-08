@@ -183,7 +183,7 @@ public sealed class PartyOrchestrator : IAsyncDisposable
         }
     }
 
-    private void LogTick(HpCalibration cal, byte[] bgra, float raw, float smoothed)
+    private void LogTick(BarCalibration cal, byte[] bgra, float raw, float smoothed)
     {
         _tickCounter++;
         int w = cal.Region.W;

@@ -1,7 +1,5 @@
 namespace GamePartyHud.Capture;
 
-public sealed record HpCalibration(
+public sealed record BarCalibration(
     CaptureRegion Region,
-    Hsv FullColor,
-    HsvTolerance Tolerance,
     FillDirection Direction);

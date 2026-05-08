@@ -69,18 +69,7 @@ public class SampleImageDiagnosticTests
     [Fact]
     public void CurrentAnalyzer_AgainstAllSamples_ShowsError()
     {
-        // Calibrate using the 100% sample, top+bottom band averaging (matches wizard).
-        var (fullBgra, fullW, fullH) = ImageLoader.Load(ImageLoader.SamplePath("HP_BAR_100_PER_CENT.png"));
-        var fullColor = SampleFullColor(fullBgra, fullW, fullH);
-        var cal = new HpCalibration(
-            new CaptureRegion(0, 0, 0, fullW, fullH),
-            fullColor,
-            HsvTolerance.Default,
-            FillDirection.LTR);
-
-        _out.WriteLine($"Calibrated fullColor HSV=(H={fullColor.H:F1}°, S={fullColor.S:F3}, V={fullColor.V:F3})");
-        _out.WriteLine($"Tolerance ±H={cal.Tolerance.H}° ±S={cal.Tolerance.S:F2} ±V={cal.Tolerance.V:F2}");
-        _out.WriteLine($"Accept window: H∈[{(fullColor.H - cal.Tolerance.H + 360f) % 360f:F0}°,{(fullColor.H + cal.Tolerance.H) % 360f:F0}°] S∈[{Math.Max(0, fullColor.S - cal.Tolerance.S):F2},{Math.Min(1, fullColor.S + cal.Tolerance.S):F2}] V∈[{Math.Max(0, fullColor.V - cal.Tolerance.V):F2},{Math.Min(1, fullColor.V + cal.Tolerance.V):F2}]");
+        _out.WriteLine($"Thresholds: Smax={BarAnalyzer.MissingMaxSaturation:F2}, Vmin={BarAnalyzer.MissingMinValue:F2}, Vmax={BarAnalyzer.MissingMaxValue:F2}");
         _out.WriteLine("");
         _out.WriteLine("file".PadRight(30) + "expected  actual   diff");
 
@@ -89,6 +78,7 @@ public class SampleImageDiagnosticTests
         foreach (var (file, expected) in Samples)
         {
             var (bgra, w, h) = ImageLoader.Load(ImageLoader.SamplePath(file));
+            var cal = new BarCalibration(new CaptureRegion(0, 0, 0, w, h), FillDirection.LTR);
             var actual = new BarAnalyzer().Analyze(bgra, w, h, cal);
             float diff = actual - expected;
             totalAbsDiff += Math.Abs(diff);
@@ -97,31 +87,6 @@ public class SampleImageDiagnosticTests
         }
         _out.WriteLine("");
         _out.WriteLine($"Mean absolute error: {(totalAbsDiff / n):P1}");
-    }
-
-    // Mirrors CalibrationWizard.SampleFullColor.
-    private static Hsv SampleFullColor(byte[] bgra, int w, int h)
-    {
-        int band = Math.Max(1, h / 5);
-        double sr = 0, sg = 0, sb = 0;
-        int n = 0;
-        void AddRow(int y)
-        {
-            int x0 = w / 4;
-            int x1 = w * 3 / 4;
-            for (int x = x0; x < x1; x++)
-            {
-                int i = (y * w + x) * 4;
-                sb += bgra[i]; sg += bgra[i + 1]; sr += bgra[i + 2];
-                n++;
-            }
-        }
-        for (int y = 0; y < Math.Min(band, h); y++) AddRow(y);
-        for (int y = Math.Max(0, h - band); y < h; y++) AddRow(y);
-        return n == 0 ? new Hsv(0, 0, 0) : Hsv.FromBgra(
-            (byte)Math.Clamp(sb / n, 0, 255),
-            (byte)Math.Clamp(sg / n, 0, 255),
-            (byte)Math.Clamp(sr / n, 0, 255));
     }
 
     private static Hsv RowAverage(byte[] bgra, int w, int y)

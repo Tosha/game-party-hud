@@ -33,10 +33,8 @@ public class ConfigStoreTests : IDisposable
         var store = new ConfigStore(_tmp);
         var cfg = AppConfig.Defaults with
         {
-            HpCalibration = new HpCalibration(
+            HpCalibration = new BarCalibration(
                 new CaptureRegion(0, 10, 20, 300, 18),
-                new Hsv(5, 0.9f, 0.7f),
-                new HsvTolerance(15, 0.25f, 0.25f),
                 FillDirection.LTR),
             NicknameRegion = new CaptureRegion(0, 10, 0, 300, 20),
             Nickname = "Yiawahuye",
