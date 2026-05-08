@@ -10,7 +10,7 @@ namespace GamePartyHud.Capture;
 /// thin decorative elements (frames, underlines, glow strips) that sit between
 /// the nickname and the real HP bar.
 /// </summary>
-public static class HpBarDetector
+public static class BarDetector
 {
     /// <summary>Minimum saturation to count a pixel as "coloured" for band detection.</summary>
     public const float SaturationThreshold = 0.4f;

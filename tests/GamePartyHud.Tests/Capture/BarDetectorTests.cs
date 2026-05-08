@@ -4,7 +4,7 @@ using Xunit;
 
 namespace GamePartyHud.Tests.Capture;
 
-public class HpBarDetectorTests
+public class BarDetectorTests
 {
     /// <summary>Build a synthetic "nickname above, HP bar below" image.</summary>
     private static byte[] NameAndBar(int width, int height,
@@ -49,7 +49,7 @@ public class HpBarDetectorTests
             bg: (20, 20, 20),           // dark background
             textGlyph: (240, 240, 240)); // white text (unsaturated)
 
-        var result = HpBarDetector.FindTopBar(buf, 60, 40);
+        var result = BarDetector.FindTopBar(buf, 60, 40);
         Assert.NotNull(result);
         Assert.Equal(18, result!.Value.YStart);
         Assert.Equal(25, result.Value.YEnd);
@@ -63,7 +63,7 @@ public class HpBarDetectorTests
             bar: (0, 0, 0),
             bg: (20, 20, 20),
             textGlyph: (240, 240, 240));
-        var result = HpBarDetector.FindTopBar(buf, 40, 20);
+        var result = BarDetector.FindTopBar(buf, 40, 20);
         Assert.Null(result);
     }
 
@@ -78,7 +78,7 @@ public class HpBarDetectorTests
         Fill(buf, 60, y: 20, h: 5, (220, 0, 0));       // blue bar
         Fill(buf, 60, y: 25, h: 5, (20, 20, 20));      // bottom bg
 
-        var result = HpBarDetector.FindTopBar(buf, 60, 30);
+        var result = BarDetector.FindTopBar(buf, 60, 30);
         Assert.NotNull(result);
         Assert.Equal(10, result!.Value.YStart);
         Assert.Equal(14, result.Value.YEnd);
@@ -103,7 +103,7 @@ public class HpBarDetectorTests
         Fill(buf, 60, y: 16, h: 4,  (20, 20, 20));
         Fill(buf, 60, y: 20, h: 20, (0, 0, 220));   // real HP bar
 
-        var result = HpBarDetector.FindTopBar(buf, 60, 40);
+        var result = BarDetector.FindTopBar(buf, 60, 40);
         Assert.NotNull(result);
         Assert.Equal(20, result!.Value.YStart);
         Assert.Equal(39, result.Value.YEnd);
@@ -120,7 +120,7 @@ public class HpBarDetectorTests
         Fill(buf, 40, y: 12, h: 6, (0, 0, 220));   // real 6px bar
         Fill(buf, 40, y: 18, h: 12, (20, 20, 20));
 
-        var result = HpBarDetector.FindTopBar(buf, 40, 30);
+        var result = BarDetector.FindTopBar(buf, 40, 30);
         Assert.NotNull(result);
         Assert.Equal(12, result!.Value.YStart);
         Assert.Equal(17, result.Value.YEnd);
