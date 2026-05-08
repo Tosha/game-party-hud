@@ -30,7 +30,7 @@ public sealed class PartyOrchestrator : IAsyncDisposable
 
     private readonly IScreenCapture _capture;
     private readonly HpBarAnalyzer _analyzer = new();
-    private readonly HpSmoother _smoother = new(windowSize: 3);
+    private readonly BarSmoother _smoother = new(windowSize: 3);
     private readonly PartyState _state;
     private readonly RelayClient _net;
     // _cfg is mutable so that nickname / role / poll-interval / calibration
