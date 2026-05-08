@@ -23,17 +23,17 @@ public class SampleImageRegressionTests
 
     public static readonly TheoryData<string, float> Samples = new()
     {
-        { "HP_BAR_4_PER_CENT.png",   0.04f },
-        { "HP_BAR_6_PER_CENT.png",   0.06f },
-        { "HP_BAR_13_PER_CENT.png",  0.13f },
-        { "HP_BAR_22_PER_CENT.png",  0.22f },
-        { "HP_BAR_28_PER_CENT.png",  0.28f },
-        { "HP_BAR_34_PER_CENT.png",  0.34f },
-        { "HP_BAR_43_PER_CENT.png",  0.43f },
-        { "HP_BAR_53_PER_CENT.png",  0.53f },
-        { "HP_BAR_63_PER_CENT.png",  0.63f },
-        { "HP_BAR_75_PER_CENT.png",  0.75f },
-        { "HP_BAR_89_PER_CENT.png",  0.89f },
+        { "HP_BAR_5_PER_CENT.png",   0.05f },
+        { "HP_BAR_11_PER_CENT.png",  0.11f },
+        { "HP_BAR_18_PER_CENT.png",  0.18f },
+        { "HP_BAR_26_PER_CENT.png",  0.26f },
+        { "HP_BAR_33_PER_CENT.png",  0.33f },
+        { "HP_BAR_42_PER_CENT.png",  0.42f },
+        { "HP_BAR_50_PER_CENT.png",  0.50f },
+        { "HP_BAR_62_PER_CENT.png",  0.62f },
+        { "HP_BAR_73_PER_CENT.png",  0.73f },
+        { "HP_BAR_84_PER_CENT.png",  0.84f },
+        { "HP_BAR_90_PER_CENT.png",  0.90f },
         { "HP_BAR_100_PER_CENT.png", 1.00f },
     };
 
