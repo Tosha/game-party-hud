@@ -118,4 +118,23 @@ public class BarAnalyzerTests
         var pct = new BarAnalyzer().Analyze(buf, 200, 10, RedLtr);
         Assert.InRange(pct, 0.48f, 0.52f);
     }
+
+    [Theory]
+    // Pure black frame border — V=0 → not missing
+    [InlineData((byte)0,   (byte)0,   (byte)0,   false)]
+    // Dark grey empty bar — S=0, V≈0.16 → missing
+    [InlineData((byte)40,  (byte)40,  (byte)40,  true)]
+    // Light grey end-cap — S=0, V≈0.63 → missing
+    [InlineData((byte)160, (byte)160, (byte)160, true)]
+    // Near-white text glyph — V≈0.96 → not missing (excluded by V upper bound)
+    [InlineData((byte)245, (byte)245, (byte)245, false)]
+    // Saturated red bar fill — S=1 → not missing (filled pixel, excluded by S upper bound)
+    [InlineData((byte)0,   (byte)0,   (byte)220, false)]
+    // Anti-alias blend pixel (red leaking into grey) — S≈0.5 → not missing
+    [InlineData((byte)80,  (byte)40,  (byte)40,  false)]
+    public void IsMissingPixel_ClassifiesBoundaryCases(byte b, byte g, byte r, bool expected)
+    {
+        var hsv = Hsv.FromBgra(b, g, r);
+        Assert.Equal(expected, BarAnalyzer.IsMissingPixel(hsv));
+    }
 }

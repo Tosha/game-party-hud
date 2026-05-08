@@ -34,6 +34,29 @@ public sealed class BarAnalyzer
     /// <summary>Half-width of the hue window around red (0°) for a pixel to count as filled.</summary>
     public const float FilledHueHalfWindow = 30f;
 
+    /// <summary>Maximum saturation for a pixel to count as part of the bar's empty/missing region.</summary>
+    public const float MissingMaxSaturation = 0.20f;
+
+    /// <summary>Minimum value for a pixel to count as missing — excludes the pure-black frame border.</summary>
+    public const float MissingMinValue = 0.05f;
+
+    /// <summary>Maximum value for a pixel to count as missing — excludes near-white text glyphs that overlay the bar.</summary>
+    public const float MissingMaxValue = 0.70f;
+
+    /// <summary>
+    /// True if <paramref name="hsv"/> looks like a pixel from the empty/missing portion of the
+    /// bar — desaturated grey within a bounded value range. Excludes the bar's frame border
+    /// (pure black, V&lt;<see cref="MissingMinValue"/>) and any overlay text glyphs (near-white,
+    /// V&gt;<see cref="MissingMaxValue"/>) so they are classified as "neither filled nor missing"
+    /// rather than falsely counted as missing.
+    /// </summary>
+    public static bool IsMissingPixel(Hsv hsv)
+    {
+        return hsv.S <= MissingMaxSaturation
+            && hsv.V >= MissingMinValue
+            && hsv.V <= MissingMaxValue;
+    }
+
     /// <summary>
     /// True if <paramref name="hsv"/> looks like a pixel from the filled portion of a red
     /// HP bar: saturated, bright, and red-hued. Desaturated pixels (dark frame, white text,
