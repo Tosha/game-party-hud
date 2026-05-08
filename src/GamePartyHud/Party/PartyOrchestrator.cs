@@ -29,7 +29,7 @@ public sealed class PartyOrchestrator : IAsyncDisposable
     private static readonly TimeSpan BroadcastHeartbeat = TimeSpan.FromSeconds(15);
 
     private readonly IScreenCapture _capture;
-    private readonly HpBarAnalyzer _analyzer = new();
+    private readonly BarAnalyzer _analyzer = new();
     private readonly BarSmoother _smoother = new(windowSize: 3);
     private readonly PartyState _state;
     private readonly RelayClient _net;
@@ -201,7 +201,7 @@ public sealed class PartyOrchestrator : IAsyncDisposable
             {
                 int idx = (y * w + x) * 4;
                 var hsv = Hsv.FromBgra(bgra[idx], bgra[idx + 1], bgra[idx + 2]);
-                if (HpBarAnalyzer.IsFilledPixel(hsv)) matches++;
+                if (BarAnalyzer.IsFilledPixel(hsv)) matches++;
             }
             if (matches == 0) empty++;
             else if (matches < minMatches) partial++;

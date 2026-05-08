@@ -89,7 +89,7 @@ public class SampleImageDiagnosticTests
         foreach (var (file, expected) in Samples)
         {
             var (bgra, w, h) = ImageLoader.Load(ImageLoader.SamplePath(file));
-            var actual = new HpBarAnalyzer().Analyze(bgra, w, h, cal);
+            var actual = new BarAnalyzer().Analyze(bgra, w, h, cal);
             float diff = actual - expected;
             totalAbsDiff += Math.Abs(diff);
             n++;

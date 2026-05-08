@@ -5,7 +5,7 @@ using Xunit;
 namespace GamePartyHud.Tests.Capture;
 
 /// <summary>
-/// Regression guard for <see cref="HpBarAnalyzer"/> against real captures of the
+/// Regression guard for <see cref="BarAnalyzer"/> against real captures of the
 /// actual HP bar in a supported game (Throne &amp; Liberty), at 12 HP percentages
 /// from 4% to 100%. The 100% capture is used as the calibration sample (matching
 /// what the in-app wizard does when the user picks their HP region with full HP),
@@ -44,7 +44,7 @@ public class SampleImageRegressionTests
         var cal = CalibrateFromFullSample();
 
         var (bgra, w, h) = ImageLoader.Load(ImageLoader.SamplePath(file));
-        var actual = new HpBarAnalyzer().Analyze(bgra, w, h, cal);
+        var actual = new BarAnalyzer().Analyze(bgra, w, h, cal);
 
         Assert.InRange(actual, expected - Tolerance, expected + Tolerance);
     }
@@ -61,7 +61,7 @@ public class SampleImageRegressionTests
             var file = (string)row[0];
             var expected = (float)row[1];
             var (bgra, w, h) = ImageLoader.Load(ImageLoader.SamplePath(file));
-            var actual = new HpBarAnalyzer().Analyze(bgra, w, h, cal);
+            var actual = new BarAnalyzer().Analyze(bgra, w, h, cal);
             totalAbs += Math.Abs(actual - expected);
             n++;
         }

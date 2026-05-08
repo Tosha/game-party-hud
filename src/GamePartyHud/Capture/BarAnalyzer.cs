@@ -19,7 +19,7 @@ namespace GamePartyHud.Capture;
 /// are kept in the data model but no longer consulted here — they remain in place so
 /// a future release can add non-red HP bar support without another config migration.
 /// </summary>
-public sealed class HpBarAnalyzer
+public sealed class BarAnalyzer
 {
     private const int StableRun = 3;
 
