@@ -3,39 +3,41 @@ using System;
 namespace GamePartyHud.Capture;
 
 /// <summary>
-/// Reads the HP bar fill percentage from a captured BGRA bitmap by classifying each
-/// column as "filled" or "empty", then finding the fill → empty transition.
+/// Reads a bar's fill percentage from a captured BGRA bitmap by classifying each
+/// column as "missing" (the bar's empty/grey background) or "not missing" (the
+/// bar's filled portion or any overlay text), then finding the transition from
+/// the anchor side. Current fraction = 1 - (missing columns / total columns).
 ///
-/// The pixel classifier is deliberately <em>calibration-free</em>: it identifies any
-/// sufficiently saturated red pixel as part of the HP bar's filled region, regardless
-/// of the exact brightness. This is robust to:
-///   - users over-selecting the HP region and including dark frame rows above/below
-///     (previously this polluted the calibrated "full colour" with near-black pixels
-///     and caused the analyzer to match the frame instead of the bar);
-///   - post-processing / HDR / colour grading in the game shifting brightness;
-///   - the subtle vertical gradient inside the bar itself.
-///
-/// The <see cref="HpCalibration.FullColor"/> and <see cref="HsvTolerance"/> fields
-/// are kept in the data model but no longer consulted here — they remain in place so
-/// a future release can add non-red HP bar support without another config migration.
+/// The pixel classifier is colour-agnostic: it identifies any sufficiently
+/// desaturated, mid-value pixel as part of the bar's empty region, regardless
+/// of what colour the filled portion would be. This is robust to:
+///   - text overlays in the middle of the bar (near-white, excluded by the V upper bound),
+///   - the dark frame border above/below the bar (pure black, excluded by the V lower bound),
+///   - users picking a region 1–2 px outside the bar,
+///   - subtle vertical gradient inside both the filled and the empty regions,
+/// and naturally extends to non-red bars (stamina, mana) without per-bar tuning.
 /// </summary>
 public sealed class BarAnalyzer
 {
-    private const int StableRun = 3;
+    // Number of consecutive same-state columns required to declare a stable
+    // initial state and, separately, to detect a transition. With the tight S
+    // threshold above, the per-column classifier is no longer fooled by text
+    // anti-alias rows, so cross-column noise is rare. A run of 2 is sufficient
+    // to absorb the 1-px anti-alias edge that separates the bar's filled
+    // portion from its empty tail.
+    private const int StableRun = 2;
 
-    /// <summary>Minimum saturation for a pixel to count as part of a filled HP bar.</summary>
-    public const float FilledMinSaturation = 0.40f;
-
-    /// <summary>Minimum value (brightness) for a pixel to count as part of a filled HP bar.
-    /// Excludes dim red "shadow" pixels at the fill edge that are still technically red-hued
-    /// but belong to the empty-bar gradient, not the lit HP fill.</summary>
-    public const float FilledMinValue = 0.30f;
-
-    /// <summary>Half-width of the hue window around red (0°) for a pixel to count as filled.</summary>
-    public const float FilledHueHalfWindow = 30f;
-
-    /// <summary>Maximum saturation for a pixel to count as part of the bar's empty/missing region.</summary>
-    public const float MissingMaxSaturation = 0.20f;
+    /// <summary>
+    /// Maximum saturation for a pixel to count as part of the bar's empty/missing region.
+    /// Set deliberately low: real captures of the empty bar (and its light-grey
+    /// gradient end-cap) show S values of 0.000–0.04 — they're true neutrals.
+    /// Anti-alias pixels along in-bar text glyph edges blend the white text onto
+    /// the saturated red bar fill, so they retain a small but nonzero S
+    /// (typically 0.08–0.20). A 0.05 threshold cleanly separates these
+    /// populations and stops the analyzer from misclassifying text-edge rows
+    /// as "missing" inside the filled portion of the bar.
+    /// </summary>
+    public const float MissingMaxSaturation = 0.05f;
 
     /// <summary>Minimum value for a pixel to count as missing — excludes the pure-black frame border.</summary>
     public const float MissingMinValue = 0.05f;
@@ -57,37 +59,22 @@ public sealed class BarAnalyzer
             && hsv.V <= MissingMaxValue;
     }
 
-    /// <summary>
-    /// True if <paramref name="hsv"/> looks like a pixel from the filled portion of a red
-    /// HP bar: saturated, bright, and red-hued. Desaturated pixels (dark frame, white text,
-    /// empty bar background), dim red shadow pixels at the fill boundary, and non-red hues
-    /// all return false.
-    /// </summary>
-    public static bool IsFilledPixel(Hsv hsv)
-    {
-        if (hsv.S < FilledMinSaturation) return false;
-        if (hsv.V < FilledMinValue) return false;
-        float h = ((hsv.H % 360f) + 360f) % 360f;
-        float distanceToZero = h > 180f ? 360f - h : h;
-        return distanceToZero <= FilledHueHalfWindow;
-    }
-
     public float Analyze(ReadOnlySpan<byte> bgra, int width, int height, HpCalibration cal)
     {
         if (width <= 0 || height <= 0) return 0f;
         if (bgra.Length < width * height * 4) throw new ArgumentException("bgra too small", nameof(bgra));
 
-        // Sample the full bar height and classify each column as "filled" if at least
-        // ~20% of its rows are saturated-red pixels. 20% tolerates text overlays in the
-        // middle and frame borders at the top/bottom while still firmly rejecting stray
-        // single-pixel noise.
+        // A column is classified as "missing" if at least ~20% of its rows are
+        // missing pixels. The 20% threshold tolerates white text glyphs in the
+        // middle and the frame at top/bottom while still firmly rejecting stray
+        // single-row noise.
         int sampleRows = height;
         int minMatches = Math.Max(2, sampleRows / 5);
 
         bool ltr = cal.Direction == FillDirection.LTR;
 
-        var colMatch = new bool[width];
-        bool anyMatch = false;
+        var colMissing = new bool[width];
+        int missingCount = 0;
         for (int i = 0; i < width; i++)
         {
             int col = ltr ? i : (width - 1 - i);
@@ -96,41 +83,45 @@ public sealed class BarAnalyzer
             {
                 int idx = (y * width + col) * 4;
                 var hsv = Hsv.FromBgra(bgra[idx], bgra[idx + 1], bgra[idx + 2]);
-                if (IsFilledPixel(hsv)) matches++;
+                if (IsMissingPixel(hsv)) matches++;
             }
-            colMatch[i] = matches >= minMatches;
-            anyMatch |= colMatch[i];
+            colMissing[i] = matches >= minMatches;
+            if (colMissing[i]) missingCount++;
         }
 
-        if (!anyMatch) return 0f;
+        // Fast path: full bar (no missing columns at all).
+        if (missingCount == 0) return 1f;
+        // Fast path: empty bar (every column is missing).
+        if (missingCount == width) return 0f;
 
         // Pass 2: establish the "stable initial state" — the first run of StableRun
-        // consecutive columns with the same match value. Resilient to 1–2px anti-alias
-        // noise at the anchor edge.
+        // consecutive columns with the same missing/not-missing classification,
+        // starting from the anchor side. Resilient to 1–2px anti-alias noise.
         int stableStart = -1;
-        bool stableMatchState = false;
+        bool stableMissingState = false;
         for (int i = 0; i + StableRun - 1 < width; i++)
         {
             bool allSame = true;
             for (int k = 1; k < StableRun && allSame; k++)
-                if (colMatch[i + k] != colMatch[i]) allSame = false;
+                if (colMissing[i + k] != colMissing[i]) allSame = false;
             if (allSame)
             {
                 stableStart = i;
-                stableMatchState = colMatch[i];
+                stableMissingState = colMissing[i];
                 break;
             }
         }
         if (stableStart == -1) return 0f;
 
-        // Pass 3: from the stable initial state, scan for StableRun consecutive columns
-        // of the opposite state. The transition position (columns from the anchor)
-        // divided by width is the fill fraction.
+        // Pass 3: from the stable initial state, scan for StableRun consecutive
+        // columns of the opposite state. The first column of that run is the
+        // transition. filledFraction = transition / width (axis already flipped
+        // for RTL so the anchor side is at i=0).
         int runOpposite = 0;
         int transition = width;
         for (int i = stableStart; i < width; i++)
         {
-            if (colMatch[i] != stableMatchState)
+            if (colMissing[i] != stableMissingState)
             {
                 runOpposite++;
                 if (runOpposite >= StableRun)

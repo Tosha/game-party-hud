@@ -189,11 +189,12 @@ public sealed class PartyOrchestrator : IAsyncDisposable
         int w = cal.Region.W;
         int h = cal.Region.H;
 
-        // Per-column match count using the SAME classifier the analyzer uses
-        // (saturated red, calibration-free). This lets us see at-a-glance whether the
-        // capture pixels look like a red bar at all.
+        // Per-column missing-pixel count using the SAME classifier the analyzer uses.
+        // Lets us see at-a-glance whether the capture pixels look like a real bar
+        // (mostly bar columns with a tail of missing columns) or something else.
+        // Threshold mirrors BarAnalyzer.Analyze (~20 % of rows).
         int minMatches = Math.Max(2, h / 5);
-        int pass = 0, partial = 0, empty = 0;
+        int barCols = 0, partial = 0, missingCols = 0;
         for (int x = 0; x < w; x++)
         {
             int matches = 0;
@@ -201,21 +202,21 @@ public sealed class PartyOrchestrator : IAsyncDisposable
             {
                 int idx = (y * w + x) * 4;
                 var hsv = Hsv.FromBgra(bgra[idx], bgra[idx + 1], bgra[idx + 2]);
-                if (BarAnalyzer.IsFilledPixel(hsv)) matches++;
+                if (BarAnalyzer.IsMissingPixel(hsv)) matches++;
             }
-            if (matches == 0) empty++;
+            if (matches == 0) barCols++;
             else if (matches < minMatches) partial++;
-            else pass++;
+            else missingCols++;
         }
 
-        // Sample average HSV of the middle-third so we can see if the capture actually
-        // contains a red bar (good) or something else (sign of a region-selection issue).
+        // Sample average HSV of the middle-third — sanity check that the capture
+        // contains a bar (good) or something else (region-selection issue).
         var midAvg = CaptureDiagnostic.AverageHsv(bgra, w, h, w / 3, 2 * w / 3);
 
         Log.Info(
             $"PartyOrchestrator tick#{_tickCounter}: raw={raw:F3} smoothed={smoothed:F3} " +
             $"region={w}x{h}@({cal.Region.X},{cal.Region.Y}) " +
-            $"cols {pass}/{partial}/{empty} pass/partial/empty; " +
+            $"cols {barCols}/{partial}/{missingCols} bar/partial/missing; " +
             $"mid-HSV H={midAvg.H:F0}° S={midAvg.S:F2} V={midAvg.V:F2}");
     }
 
