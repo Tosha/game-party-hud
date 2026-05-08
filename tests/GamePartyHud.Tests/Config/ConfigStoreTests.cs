@@ -102,4 +102,47 @@ public class ConfigStoreTests : IDisposable
         // Round-trip still equal — Load promotes the build default.
         Assert.Equal(AppConfig.Defaults, store.Load());
     }
+
+    [Fact]
+    public void Load_OldShapeHpCalibrationJson_DropsFullColorAndTolerance()
+    {
+        // A config.json saved by a build before the BarCalibration redesign
+        // contains hpCalibration.fullColor and hpCalibration.tolerance objects.
+        // The new BarCalibration record only has Region and Direction, so those
+        // two extra JSON keys must be silently ignored on load (System.Text.Json
+        // default behaviour with JsonSerializerDefaults.Web). The next Save
+        // re-serialises without them.
+        File.WriteAllText(_tmp, """
+{
+  "hpCalibration": {
+    "region": { "monitor": 0, "x": 10, "y": 20, "w": 300, "h": 18 },
+    "fullColor": { "h": 5, "s": 0.9, "v": 0.7 },
+    "tolerance": { "h": 15, "s": 0.25, "v": 0.25 },
+    "direction": "LTR"
+  },
+  "nicknameRegion": null,
+  "nickname": "Test",
+  "role": "Tank",
+  "hudPosition": { "x": 0, "y": 0, "monitor": 0 },
+  "hudLocked": true,
+  "lastPartyId": null,
+  "pollIntervalMs": 2000,
+  "relayUrl": ""
+}
+""");
+
+        var store = new ConfigStore(_tmp);
+        var loaded = store.Load();
+
+        Assert.NotNull(loaded.HpCalibration);
+        Assert.Equal(new CaptureRegion(0, 10, 20, 300, 18), loaded.HpCalibration!.Region);
+        Assert.Equal(FillDirection.LTR, loaded.HpCalibration.Direction);
+
+        // Round-trip: save and re-read; the reborn JSON must not contain the
+        // legacy keys.
+        store.Save(loaded);
+        var reborn = File.ReadAllText(_tmp);
+        Assert.DoesNotContain("\"fullColor\"", reborn);
+        Assert.DoesNotContain("\"tolerance\"", reborn);
+    }
 }
