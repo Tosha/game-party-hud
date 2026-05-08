@@ -52,7 +52,7 @@ public class BarAnalyzerTests
     }
 
     [Fact]
-    public void Analyze_NoMatchingPixels_Returns0()
+    public void Analyze_FullyEmptyBar_Returns0()
     {
         var buf = SyntheticBitmap.HorizontalBar(200, 10, 0f, (40, 40, 40), (40, 40, 40));
         var pct = new BarAnalyzer().Analyze(buf, 200, 10, RedLtr);

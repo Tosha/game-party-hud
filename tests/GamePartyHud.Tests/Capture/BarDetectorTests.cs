@@ -6,7 +6,7 @@ namespace GamePartyHud.Tests.Capture;
 
 public class BarDetectorTests
 {
-    /// <summary>Build a synthetic "nickname above, HP bar below" image.</summary>
+    /// <summary>Build a synthetic "nickname above, bar below" image.</summary>
     private static byte[] NameAndBar(int width, int height,
         int nameEndY, int barStartY, int barEndY,
         (byte b, byte g, byte r) bar,

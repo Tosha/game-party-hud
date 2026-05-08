@@ -31,7 +31,6 @@ public partial class MainWindow : FluentWindow
     public interface IController
     {
         AppConfig Config { get; }
-        IScreenCapture Capture { get; }
 
         /// <summary>Current party id if we're in one; null otherwise.</summary>
         string? CurrentPartyId { get; }
