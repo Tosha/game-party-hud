@@ -101,7 +101,7 @@ public class SampleImageRegressionTests
             (byte)Math.Clamp(sr / pixels, 0, 255));
 
         return new HpCalibration(
-            new HpRegion(0, 0, 0, w, h),
+            new CaptureRegion(0, 0, 0, w, h),
             fullColor,
             HsvTolerance.Default,
             FillDirection.LTR);

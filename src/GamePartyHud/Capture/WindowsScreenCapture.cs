@@ -12,7 +12,7 @@ namespace GamePartyHud.Capture;
 /// Screen capture backed by GDI+ <c>Graphics.CopyFromScreen</c> (which calls Win32 BitBlt
 /// under the hood). Works reliably on borderless-windowed games — the mode the app targets.
 /// The process is PerMonitorV2 DPI-aware (see <c>app.manifest</c>), so X/Y and W/H in
-/// <see cref="HpRegion"/> are interpreted as physical pixels on the virtual desktop.
+/// <see cref="CaptureRegion"/> are interpreted as physical pixels on the virtual desktop.
 ///
 /// NOTE: exclusive fullscreen DirectX games may defeat BitBlt (the captured region can
 /// come back black). The app's design is borderless-windowed only; fullscreen capture
@@ -21,7 +21,7 @@ namespace GamePartyHud.Capture;
 [SupportedOSPlatform("windows")]
 public sealed class WindowsScreenCapture : IScreenCapture, IDisposable
 {
-    public ValueTask<byte[]> CaptureBgraAsync(HpRegion region, CancellationToken ct = default)
+    public ValueTask<byte[]> CaptureBgraAsync(CaptureRegion region, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
 

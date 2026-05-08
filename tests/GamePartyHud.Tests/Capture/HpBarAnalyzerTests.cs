@@ -6,7 +6,7 @@ namespace GamePartyHud.Tests.Capture;
 public class HpBarAnalyzerTests
 {
     private static readonly HpCalibration RedLtr = new(
-        Region: new HpRegion(0, 0, 0, 200, 10),
+        Region: new CaptureRegion(0, 0, 0, 200, 10),
         FullColor: Hsv.FromBgra(b: 0, g: 0, r: 255),
         Tolerance: HsvTolerance.Default,
         Direction: FillDirection.LTR);
@@ -72,7 +72,7 @@ public class HpBarAnalyzerTests
         // calibrated reference entirely, so a bogus fullColor can't break readings.
         var buf = Bar(1.0f); // fully red bar
         var bogusDarkCalibration = new HpCalibration(
-            Region: new HpRegion(0, 0, 0, 200, 10),
+            Region: new CaptureRegion(0, 0, 0, 200, 10),
             FullColor: new Hsv(15f, 0.098f, 0.161f),   // near-black, exactly like the bug report
             Tolerance: HsvTolerance.Default,
             Direction: FillDirection.LTR);

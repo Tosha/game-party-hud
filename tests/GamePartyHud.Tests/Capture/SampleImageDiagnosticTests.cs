@@ -73,7 +73,7 @@ public class SampleImageDiagnosticTests
         var (fullBgra, fullW, fullH) = ImageLoader.Load(ImageLoader.SamplePath("HP_BAR_100_PER_CENT.png"));
         var fullColor = SampleFullColor(fullBgra, fullW, fullH);
         var cal = new HpCalibration(
-            new HpRegion(0, 0, 0, fullW, fullH),
+            new CaptureRegion(0, 0, 0, fullW, fullH),
             fullColor,
             HsvTolerance.Default,
             FillDirection.LTR);

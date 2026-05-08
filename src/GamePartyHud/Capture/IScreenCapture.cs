@@ -10,5 +10,5 @@ public interface IScreenCapture
     /// and alpha = 255. The returned length is exactly <c>region.W * region.H * 4</c>.
     /// Coordinates are interpreted as physical pixels on the virtual desktop.
     /// </summary>
-    ValueTask<byte[]> CaptureBgraAsync(HpRegion region, CancellationToken ct = default);
+    ValueTask<byte[]> CaptureBgraAsync(CaptureRegion region, CancellationToken ct = default);
 }

@@ -34,11 +34,11 @@ public class ConfigStoreTests : IDisposable
         var cfg = AppConfig.Defaults with
         {
             HpCalibration = new HpCalibration(
-                new HpRegion(0, 10, 20, 300, 18),
+                new CaptureRegion(0, 10, 20, 300, 18),
                 new Hsv(5, 0.9f, 0.7f),
                 new HsvTolerance(15, 0.25f, 0.25f),
                 FillDirection.LTR),
-            NicknameRegion = new HpRegion(0, 10, 0, 300, 20),
+            NicknameRegion = new CaptureRegion(0, 10, 0, 300, 20),
             Nickname = "Yiawahuye",
             Role = Role.Tank,
             HudPosition = new HudPosition(500, 400, 1),
