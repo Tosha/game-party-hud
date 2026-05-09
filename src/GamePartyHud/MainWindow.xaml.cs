@@ -31,7 +31,6 @@ public partial class MainWindow : FluentWindow
     public interface IController
     {
         AppConfig Config { get; }
-        IScreenCapture Capture { get; }
 
         /// <summary>Current party id if we're in one; null otherwise.</summary>
         string? CurrentPartyId { get; }
@@ -170,7 +169,7 @@ public partial class MainWindow : FluentWindow
         Log.Info($"MainWindow: role changed to {opt.Role}.");
     }
 
-    private async void OnPickRegion(object sender, RoutedEventArgs e)
+    private void OnPickRegion(object sender, RoutedEventArgs e)
     {
         Log.Info("MainWindow: Pick-region button clicked.");
         // Opacity=0 rather than Hide() — Hide() on a WPF window with a child
@@ -188,9 +187,7 @@ public partial class MainWindow : FluentWindow
                 return;
             }
 
-            var bgra = await _ctl.Capture.CaptureBgraAsync(region).ConfigureAwait(true);
-            var fullColor = SampleFullColor(bgra, region.W, region.H);
-            var cal = new HpCalibration(region, fullColor, HsvTolerance.Default, FillDirection.LTR);
+            var cal = new BarCalibration(region, FillDirection.LTR);
 
             _ctl.UpdateConfig(_ctl.Config with
             {
@@ -211,30 +208,6 @@ public partial class MainWindow : FluentWindow
             Opacity = 1;
             Activate();
         }
-    }
-
-    /// <summary>Average top + bottom 20% of the captured bar, skipping text in the middle.</summary>
-    private static Hsv SampleFullColor(byte[] bgra, int w, int h)
-    {
-        int band = Math.Max(1, h / 5);
-        double sr = 0, sg = 0, sb = 0;
-        int n = 0;
-        void AddRow(int y)
-        {
-            int x0 = w / 4, x1 = w * 3 / 4;
-            for (int x = x0; x < x1; x++)
-            {
-                int i = (y * w + x) * 4;
-                sb += bgra[i]; sg += bgra[i + 1]; sr += bgra[i + 2]; n++;
-            }
-        }
-        for (int y = 0; y < Math.Min(band, h); y++) AddRow(y);
-        for (int y = Math.Max(0, h - band); y < h; y++) AddRow(y);
-        if (n == 0) return new Hsv(0, 0, 0);
-        return Hsv.FromBgra(
-            (byte)Math.Clamp(sb / n, 0, 255),
-            (byte)Math.Clamp(sg / n, 0, 255),
-            (byte)Math.Clamp(sr / n, 0, 255));
     }
 
     // ------------------------------------------------------------------

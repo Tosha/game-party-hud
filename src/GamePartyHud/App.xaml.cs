@@ -37,7 +37,6 @@ public partial class App : Application, MainWindow.IController
     // -- MainWindow.IController surface --------------------------------------
 
     AppConfig MainWindow.IController.Config => _config;
-    IScreenCapture MainWindow.IController.Capture => _capture!;
     string? MainWindow.IController.CurrentPartyId => _currentPartyId;
     int MainWindow.IController.MemberCount => _state?.Members.Count ?? 0;
 

@@ -8,7 +8,7 @@ namespace GamePartyHud.Calibration;
 
 public partial class RegionSelectorWindow : Window
 {
-    public HpRegion? Result { get; private set; }
+    public CaptureRegion? Result { get; private set; }
     private Point _start;
     private bool _dragging;
 
@@ -68,7 +68,7 @@ public partial class RegionSelectorWindow : Window
             Canvas.GetLeft(Selection) + Selection.Width,
             Canvas.GetTop(Selection) + Selection.Height));
 
-        Result = new HpRegion(
+        Result = new CaptureRegion(
             Monitor: 0, // Single-monitor assumption for v0.1.0; the capture layer uses absolute coords.
             X: (int)Math.Round(topLeftScreen.X),
             Y: (int)Math.Round(topLeftScreen.Y),

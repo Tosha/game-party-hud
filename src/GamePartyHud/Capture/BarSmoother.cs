@@ -3,22 +3,22 @@ using System;
 namespace GamePartyHud.Capture;
 
 /// <summary>
-/// Rolling-median temporal filter for HP readings.
+/// Rolling-median temporal filter for bar readings (HP, stamina, mana, etc.).
 ///
 /// Why median instead of EMA: live game captures occasionally produce a spike or dip
-/// (shimmer animation, HP-bar flash, capture racing with a game render frame, etc.).
+/// (shimmer animation, bar flash, capture racing with a game render frame, etc.).
 /// A single outlier can push an EMA several percentage points away from reality and
 /// stays visible for multiple ticks as it decays. A median of the last N samples
 /// rejects any outlier that doesn't persist for ⌈N/2⌉ samples in a row — so a
 /// one-tick spike is gone instantly, while a real sustained change still propagates
 /// through cleanly with at most (N/2) ticks of lag.
 /// </summary>
-public sealed class HpSmoother
+public sealed class BarSmoother
 {
     private readonly float?[] _window;
     private int _cursor;
 
-    public HpSmoother(int windowSize = 3)
+    public BarSmoother(int windowSize = 3)
     {
         if (windowSize < 1) throw new ArgumentOutOfRangeException(nameof(windowSize));
         _window = new float?[windowSize];

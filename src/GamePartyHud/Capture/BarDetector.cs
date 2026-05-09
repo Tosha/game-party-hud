@@ -3,14 +3,14 @@ using System;
 namespace GamePartyHud.Capture;
 
 /// <summary>
-/// Finds the HP bar strip within a larger region that contains nickname text
-/// (above) and the HP bar (below). Classifies each row as "coloured" (majority
+/// Finds the bar strip within a larger region that contains nickname text
+/// (above) and the bar (below). Classifies each row as "coloured" (majority
 /// saturated pixels) or not, then returns the <em>tallest</em> contiguous run of
 /// coloured rows. Picking the tallest — not the first — avoids latching onto
 /// thin decorative elements (frames, underlines, glow strips) that sit between
-/// the nickname and the real HP bar.
+/// the nickname and the real bar.
 /// </summary>
-public static class HpBarDetector
+public static class BarDetector
 {
     /// <summary>Minimum saturation to count a pixel as "coloured" for band detection.</summary>
     public const float SaturationThreshold = 0.4f;
@@ -25,8 +25,8 @@ public static class HpBarDetector
     /// Find the tallest horizontal bar inside the given BGRA region.
     /// Returns (yStart, yEnd) inclusive, or null if no bar was detected.
     /// Ties (multiple runs of the same height) resolve to the topmost run,
-    /// which preserves the common "HP is the top bar of the status block"
-    /// convention.
+    /// which preserves the common "the load-bearing bar (HP for now) is the top
+    /// bar of the status block" convention.
     /// </summary>
     public static (int YStart, int YEnd)? FindTopBar(ReadOnlySpan<byte> bgra, int width, int height)
     {
