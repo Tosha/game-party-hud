@@ -14,7 +14,8 @@ public sealed record AppConfig(
     bool HudLocked,
     string? LastPartyId,
     int PollIntervalMs,
-    string RelayUrl)
+    string RelayUrl,
+    string RelayFallbackUrl = "")
 {
     /// <summary>
     /// Default relay endpoint, injected at build time via the
@@ -24,16 +25,26 @@ public sealed record AppConfig(
     /// secret. End users override per-machine via the <c>RelayUrl</c> field
     /// in <c>%AppData%\GamePartyHud\config.json</c>.
     /// </summary>
-    public static string DefaultRelayUrl { get; } = ResolveDefaultRelayUrl();
+    public static string DefaultRelayUrl { get; } = ResolveAssemblyMetadata("RelayUrl", fallback: "wss://relay.example.invalid");
 
-    private static string ResolveDefaultRelayUrl()
+    /// <summary>
+    /// Optional secondary relay endpoint, tried after <see cref="DefaultRelayUrl"/>
+    /// fails to connect within the client's timeout. Used to route around ISPs
+    /// that block the Cloudflare CIDR ranges where the primary Worker lives;
+    /// the fallback runs on a non-Cloudflare host (e.g. an Oracle Always-Free
+    /// VM) and proxies into the same Worker. Empty string means no fallback,
+    /// preserving the single-URL path for forks that haven't set up a bridge.
+    /// </summary>
+    public static string DefaultRelayFallbackUrl { get; } = ResolveAssemblyMetadata("RelayFallbackUrl", fallback: "");
+
+    private static string ResolveAssemblyMetadata(string key, string fallback)
     {
         var fromMetadata = typeof(AppConfig).Assembly
             .GetCustomAttributes<AssemblyMetadataAttribute>()
-            .FirstOrDefault(a => a.Key == "RelayUrl")
+            .FirstOrDefault(a => a.Key == key)
             ?.Value;
         if (!string.IsNullOrWhiteSpace(fromMetadata)) return fromMetadata;
-        return "wss://relay.example.invalid";
+        return fallback;
     }
 
     public static AppConfig Defaults { get; } = new(
@@ -45,7 +56,8 @@ public sealed record AppConfig(
         HudLocked: true,
         LastPartyId: null,
         PollIntervalMs: 2000,
-        RelayUrl: DefaultRelayUrl);
+        RelayUrl: DefaultRelayUrl,
+        RelayFallbackUrl: DefaultRelayFallbackUrl);
 }
 
 public sealed record HudPosition(double X, double Y, int Monitor);

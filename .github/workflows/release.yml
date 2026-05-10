@@ -34,16 +34,29 @@ jobs:
         shell: pwsh
         env:
           GPH_RELAY_URL: ${{ secrets.GPH_RELAY_URL }}
+          GPH_RELAY_FALLBACK_URL: ${{ secrets.GPH_RELAY_FALLBACK_URL }}
         run: |
           if ([string]::IsNullOrWhiteSpace($env:GPH_RELAY_URL)) {
             Write-Error "GPH_RELAY_URL secret is not configured. Aborting release to avoid shipping the placeholder relay URL."
             exit 1
           }
           Write-Host "GPH_RELAY_URL is set; proceeding with release."
+          # GPH_RELAY_FALLBACK_URL is optional — when unset, the binary ships
+          # with single-URL behaviour (no fallback). When set, the URL is
+          # baked in as the secondary endpoint clients try if the primary
+          # fails to connect within the client-side timeout. Used to route
+          # around ISPs that block the Cloudflare CIDR ranges where the
+          # primary Worker lives.
+          if ([string]::IsNullOrWhiteSpace($env:GPH_RELAY_FALLBACK_URL)) {
+            Write-Host "GPH_RELAY_FALLBACK_URL is unset; release will ship without a fallback endpoint."
+          } else {
+            Write-Host "GPH_RELAY_FALLBACK_URL is set; release will include fallback endpoint."
+          }
 
       - name: Publish
         env:
           GPH_RELAY_URL: ${{ secrets.GPH_RELAY_URL }}
+          GPH_RELAY_FALLBACK_URL: ${{ secrets.GPH_RELAY_FALLBACK_URL }}
         run: >
           dotnet publish src/GamePartyHud/GamePartyHud.csproj
           -c Release
@@ -52,6 +65,7 @@ jobs:
           -p:PublishSingleFile=true
           -p:IncludeNativeLibrariesForSelfExtract=true
           "-p:RelayUrl=${env:GPH_RELAY_URL}"
+          "-p:RelayFallbackUrl=${env:GPH_RELAY_FALLBACK_URL}"
 
       - name: Zip release
         shell: pwsh

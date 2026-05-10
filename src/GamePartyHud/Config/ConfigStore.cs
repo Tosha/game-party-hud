@@ -36,16 +36,20 @@ public sealed class ConfigStore
             var json = File.ReadAllText(_path);
             var raw = JsonSerializer.Deserialize<AppConfig>(json, _opts) ?? AppConfig.Defaults;
 
-            // RelayUrl is owned by the binary, not by per-machine config.
-            // Always promote the build-time default (set by the GPH_RELAY_URL
-            // GitHub Actions secret at publish time) over whatever's
-            // persisted on disk. This prevents a once-saved URL from
-            // shadowing future binary rotations — the symptom we hit when
-            // config.json kept routing the app to a deleted relay endpoint
-            // after a server rename. Forks that need a different URL set
-            // their own GPH_RELAY_URL secret and rebuild; there is no
-            // per-machine config.json override.
-            return raw with { RelayUrl = AppConfig.DefaultRelayUrl };
+            // RelayUrl and RelayFallbackUrl are owned by the binary, not by
+            // per-machine config. Always promote the build-time defaults (set
+            // by the GPH_RELAY_URL / GPH_RELAY_FALLBACK_URL GitHub Actions
+            // secrets at publish time) over whatever's persisted on disk.
+            // This prevents a once-saved URL from shadowing future binary
+            // rotations — the symptom we hit when config.json kept routing
+            // the app to a deleted relay endpoint after a server rename.
+            // Forks that need different URLs set their own secrets and
+            // rebuild; there is no per-machine config.json override.
+            return raw with
+            {
+                RelayUrl = AppConfig.DefaultRelayUrl,
+                RelayFallbackUrl = AppConfig.DefaultRelayFallbackUrl
+            };
         }
         catch (Exception)
         {
@@ -57,11 +61,12 @@ public sealed class ConfigStore
 
     public void Save(AppConfig config)
     {
-        // Don't persist RelayUrl. Load always overrides it with the
-        // build-time default, so writing it here would just make
-        // config.json look authoritative when it isn't and confuse anyone
-        // who opens the file to debug a connectivity issue.
-        var json = JsonSerializer.Serialize(config with { RelayUrl = "" }, _opts);
+        // Don't persist RelayUrl or RelayFallbackUrl. Load always overrides
+        // them with the build-time defaults, so writing them here would just
+        // make config.json look authoritative when it isn't and confuse
+        // anyone who opens the file to debug a connectivity issue.
+        var json = JsonSerializer.Serialize(
+            config with { RelayUrl = "", RelayFallbackUrl = "" }, _opts);
         var tmp = _path + ".tmp";
         File.WriteAllText(tmp, json);
         File.Move(tmp, _path, overwrite: true);

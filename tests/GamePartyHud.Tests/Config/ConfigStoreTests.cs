@@ -104,6 +104,45 @@ public class ConfigStoreTests : IDisposable
     }
 
     [Fact]
+    public void Load_AlwaysOverridesPersistedRelayFallbackUrl_WithBuildDefault()
+    {
+        // RelayFallbackUrl follows the same lifecycle as RelayUrl: owned by
+        // the binary, never round-tripped through config.json. A stale value
+        // on disk (e.g. from a previous build that pointed at a different
+        // bridge) is replaced by the binary's compiled-in default on Load.
+        File.WriteAllText(_tmp, """
+{
+  "hpCalibration": null,
+  "nicknameRegion": null,
+  "nickname": "Test",
+  "role": "Tank",
+  "hudPosition": { "x": 0, "y": 0, "monitor": 0 },
+  "hudLocked": true,
+  "lastPartyId": null,
+  "pollIntervalMs": 3000,
+  "relayUrl": "wss://stale.example.invalid",
+  "relayFallbackUrl": "wss://stale-bridge.example.invalid"
+}
+""");
+
+        var loaded = new ConfigStore(_tmp).Load();
+        Assert.Equal(AppConfig.DefaultRelayFallbackUrl, loaded.RelayFallbackUrl);
+    }
+
+    [Fact]
+    public void Save_DoesNotPersistRelayFallbackUrl()
+    {
+        // Same rationale as RelayUrl: the binary owns the value, persisting
+        // it just makes config.json look authoritative when it isn't and
+        // creates surprise when a binary rotation doesn't take effect.
+        var store = new ConfigStore(_tmp);
+        store.Save(AppConfig.Defaults with { RelayFallbackUrl = "wss://bridge-secret.example.com" });
+
+        var jsonOnDisk = File.ReadAllText(_tmp);
+        Assert.DoesNotContain("bridge-secret", jsonOnDisk);
+    }
+
+    [Fact]
     public void Load_OldShapeHpCalibrationJson_DropsFullColorAndTolerance()
     {
         // A config.json saved by a build before the BarCalibration redesign

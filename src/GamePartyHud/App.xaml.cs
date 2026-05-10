@@ -227,8 +227,14 @@ public partial class App : Application, MainWindow.IController
         RandomNumberGenerator.Fill(selfPeerBytes);
         var selfPeer = Convert.ToHexString(selfPeerBytes).ToLowerInvariant();
 
-        var relayUri = new Uri($"{_config.RelayUrl.TrimEnd('/')}/party/{Uri.EscapeDataString(partyId)}");
-        var net = new RelayClient(selfPeer, relayUri);
+        var primaryUri = new Uri($"{_config.RelayUrl.TrimEnd('/')}/party/{Uri.EscapeDataString(partyId)}");
+        Uri? fallbackUri = null;
+        if (!string.IsNullOrWhiteSpace(_config.RelayFallbackUrl))
+        {
+            fallbackUri = new Uri($"{_config.RelayFallbackUrl.TrimEnd('/')}/party/{Uri.EscapeDataString(partyId)}");
+            Log.Info($"Relay fallback configured: {fallbackUri}.");
+        }
+        var net = new RelayClient(selfPeer, primaryUri, fallbackUri);
         net.OnPeerConnected    += id => { Log.Info($"Peer connected: {id}"); PartyStateChanged?.Invoke(); };
         net.OnPeerDisconnected += id => { Log.Info($"Peer disconnected: {id}"); PartyStateChanged?.Invoke(); };
         // PartyOrchestrator's ctor subscribes to OnMessage below — don't double-subscribe here.
