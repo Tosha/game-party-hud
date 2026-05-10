@@ -49,6 +49,7 @@ public class ConfigStoreTests : IDisposable
             HudLocked = false,
             LastPartyId = "X7K2P9",
             PollIntervalMs = 2500,
+            FullscreenDisclaimerDismissed = true,
         };
         store.Save(cfg);
         Assert.Equal(cfg, store.Load());
@@ -220,5 +221,33 @@ public class ConfigStoreTests : IDisposable
         Assert.NotNull(loaded.HpCalibration);
         Assert.Null(loaded.StaminaCalibration);
         Assert.Null(loaded.ManaCalibration);
+    }
+
+    [Fact]
+    public void Load_OldShapeConfig_MissingFullscreenDisclaimerDismissed_DefaultsToFalse()
+    {
+        // A config.json saved before the fullscreen disclaimer banner shipped
+        // doesn't contain the fullscreenDisclaimerDismissed key. The new field
+        // must default to false on load so existing users see the banner once
+        // on their next launch (and dismiss it, at which point the field
+        // persists as true going forward).
+        File.WriteAllText(_tmp, """
+{
+  "hpCalibration": null,
+  "staminaCalibration": null,
+  "manaCalibration": null,
+  "nicknameRegion": null,
+  "nickname": "Test",
+  "role": "Tank",
+  "hudPosition": { "x": 0, "y": 0, "monitor": 0 },
+  "hudLocked": true,
+  "lastPartyId": null,
+  "pollIntervalMs": 2000,
+  "relayUrl": ""
+}
+""");
+
+        var loaded = new ConfigStore(_tmp).Load();
+        Assert.False(loaded.FullscreenDisclaimerDismissed);
     }
 }
