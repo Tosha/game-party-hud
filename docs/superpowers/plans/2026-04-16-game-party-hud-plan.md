@@ -42,11 +42,10 @@ GamePartyHud.sln
 │   ├── App.xaml, App.xaml.cs           # application bootstrap, composition root
 │   ├── app.manifest                    # DPI awareness PerMonitorV2
 │   ├── Capture/
-│   │   ├── HpRegion.cs                 # record: monitor, x, y, w, h
-│   │   ├── Hsv.cs                      # Hsv record + RgbToHsv helper
-│   │   ├── HsvTolerance.cs             # record: h, s, v
-│   │   ├── FillDirection.cs            # enum LTR/RTL
-│   │   ├── HpCalibration.cs            # aggregate of the above
+│   │   ├── CaptureRegion.cs            # record: monitor, x, y, w, h
+│   │   ├── Hsv.cs                      # record struct: h, s, v
+│   │   ├── FillDirection.cs            # enum: LTR, RTL
+│   │   ├── BarCalibration.cs           # aggregate of the above
 │   │   ├── HpBarAnalyzer.cs            # pure: bitmap + calibration → percent
 │   │   ├── IScreenCapture.cs           # interface
 │   │   └── WindowsScreenCapture.cs     # Windows.Graphics.Capture impl
@@ -116,35 +115,31 @@ GamePartyHud.sln
 These types are defined in M2/M5; all later tasks use these exact names and signatures. If you find yourself about to write a different signature, check here first.
 
 ```csharp
-// Capture/HpRegion.cs
-public sealed record HpRegion(int Monitor, int X, int Y, int W, int H);
+// Capture/CaptureRegion.cs
+public sealed record CaptureRegion(int Monitor, int X, int Y, int W, int H);
 
 // Capture/Hsv.cs
 public readonly record struct Hsv(float H, float S, float V);
 
-// Capture/HsvTolerance.cs
-public sealed record HsvTolerance(float H, float S, float V);
-
 // Capture/FillDirection.cs
 public enum FillDirection { LTR, RTL }
 
-// Capture/HpCalibration.cs
-public sealed record HpCalibration(
-    HpRegion Region,
-    Hsv FullColor,
-    HsvTolerance Tolerance,
+// Capture/BarCalibration.cs
+public sealed record BarCalibration(
+    CaptureRegion Region,
     FillDirection Direction);
 
 // Capture/IScreenCapture.cs
 public interface IScreenCapture
 {
-    ValueTask<byte[]> CaptureBgraAsync(HpRegion region, CancellationToken ct = default);
+    ValueTask<byte[]> CaptureBgraAsync(CaptureRegion region, CancellationToken ct = default);
 }
 
-// Capture/HpBarAnalyzer.cs
-public sealed class HpBarAnalyzer
+// Capture/BarAnalyzer.cs
+public sealed class BarAnalyzer
 {
-    public float Analyze(ReadOnlySpan<byte> bgra, int width, int height, HpCalibration cal);
+    public static bool IsMissingPixel(Hsv hsv);
+    public float Analyze(ReadOnlySpan<byte> bgra, int width, int height, BarCalibration cal);
 }
 
 // Party/Role.cs

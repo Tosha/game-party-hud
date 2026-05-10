@@ -9,7 +9,7 @@ namespace GamePartyHud.Tests.Capture;
 
 /// <summary>
 /// Loads a PNG file into the contiguous BGRA byte layout that
-/// <see cref="GamePartyHud.Capture.HpBarAnalyzer.Analyze"/> expects:
+/// <see cref="GamePartyHud.Capture.BarAnalyzer.Analyze"/> expects:
 /// stride = width * 4, alpha forced to 255.
 /// </summary>
 [SupportedOSPlatform("windows")]

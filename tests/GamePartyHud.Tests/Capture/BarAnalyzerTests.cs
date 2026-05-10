@@ -3,12 +3,10 @@ using Xunit;
 
 namespace GamePartyHud.Tests.Capture;
 
-public class HpBarAnalyzerTests
+public class BarAnalyzerTests
 {
-    private static readonly HpCalibration RedLtr = new(
-        Region: new HpRegion(0, 0, 0, 200, 10),
-        FullColor: Hsv.FromBgra(b: 0, g: 0, r: 255),
-        Tolerance: HsvTolerance.Default,
+    private static readonly BarCalibration RedLtr = new(
+        Region: new CaptureRegion(0, 0, 0, 200, 10),
         Direction: FillDirection.LTR);
 
     private static byte[] Bar(float ratio) => SyntheticBitmap.HorizontalBar(
@@ -20,7 +18,7 @@ public class HpBarAnalyzerTests
     public void Analyze_FullBar_Returns1()
     {
         var buf = Bar(1.0f);
-        var pct = new HpBarAnalyzer().Analyze(buf, 200, 10, RedLtr);
+        var pct = new BarAnalyzer().Analyze(buf, 200, 10, RedLtr);
         Assert.InRange(pct, 0.98f, 1.0f);
     }
 
@@ -28,7 +26,7 @@ public class HpBarAnalyzerTests
     public void Analyze_EmptyBar_Returns0()
     {
         var buf = Bar(0.0f);
-        var pct = new HpBarAnalyzer().Analyze(buf, 200, 10, RedLtr);
+        var pct = new BarAnalyzer().Analyze(buf, 200, 10, RedLtr);
         Assert.InRange(pct, 0.0f, 0.02f);
     }
 
@@ -40,7 +38,7 @@ public class HpBarAnalyzerTests
     public void Analyze_PartialBar_WithinTwoPercent(float ratio)
     {
         var buf = Bar(ratio);
-        var pct = new HpBarAnalyzer().Analyze(buf, 200, 10, RedLtr);
+        var pct = new BarAnalyzer().Analyze(buf, 200, 10, RedLtr);
         Assert.InRange(pct, ratio - 0.02f, ratio + 0.02f);
     }
 
@@ -49,37 +47,16 @@ public class HpBarAnalyzerTests
     {
         var buf = SyntheticBitmap.HorizontalBar(200, 10, 0.7f, (0, 0, 255), (40, 40, 40));
         var cal = RedLtr with { Direction = FillDirection.RTL };
-        var pct = new HpBarAnalyzer().Analyze(buf, 200, 10, cal);
+        var pct = new BarAnalyzer().Analyze(buf, 200, 10, cal);
         Assert.InRange(pct, 0.28f, 0.32f);
     }
 
     [Fact]
-    public void Analyze_NoMatchingPixels_Returns0()
+    public void Analyze_FullyEmptyBar_Returns0()
     {
         var buf = SyntheticBitmap.HorizontalBar(200, 10, 0f, (40, 40, 40), (40, 40, 40));
-        var pct = new HpBarAnalyzer().Analyze(buf, 200, 10, RedLtr);
+        var pct = new BarAnalyzer().Analyze(buf, 200, 10, RedLtr);
         Assert.Equal(0f, pct);
-    }
-
-    [Fact]
-    public void Analyze_IsIndependentOfCalibratedFullColor()
-    {
-        // Regression test for the field bug where the calibration wizard sampled the
-        // dark frame rows above/below the bar (user over-selected the region by 2 px
-        // on each side) and stored a near-black fullColor. Before the fix, the analyzer
-        // matched the frame and reported ~3% for a 100%-filled bar. After, the
-        // classifier looks only at "is this a saturated red pixel?" and ignores the
-        // calibrated reference entirely, so a bogus fullColor can't break readings.
-        var buf = Bar(1.0f); // fully red bar
-        var bogusDarkCalibration = new HpCalibration(
-            Region: new HpRegion(0, 0, 0, 200, 10),
-            FullColor: new Hsv(15f, 0.098f, 0.161f),   // near-black, exactly like the bug report
-            Tolerance: HsvTolerance.Default,
-            Direction: FillDirection.LTR);
-
-        var pct = new HpBarAnalyzer().Analyze(buf, 200, 10, bogusDarkCalibration);
-
-        Assert.InRange(pct, 0.98f, 1.0f);
     }
 
     [Fact]
@@ -104,7 +81,7 @@ public class HpBarAnalyzerTests
                 buf[i + 3] = 255;
             }
         }
-        var pct = new HpBarAnalyzer().Analyze(buf, width, height, RedLtr);
+        var pct = new BarAnalyzer().Analyze(buf, width, height, RedLtr);
         Assert.InRange(pct, 0.95f, 1.0f);
     }
 
@@ -115,7 +92,26 @@ public class HpBarAnalyzerTests
         buf[(5 * 200 * 4) + 150 * 4 + 0] = 0;
         buf[(5 * 200 * 4) + 150 * 4 + 1] = 0;
         buf[(5 * 200 * 4) + 150 * 4 + 2] = 255;
-        var pct = new HpBarAnalyzer().Analyze(buf, 200, 10, RedLtr);
+        var pct = new BarAnalyzer().Analyze(buf, 200, 10, RedLtr);
         Assert.InRange(pct, 0.48f, 0.52f);
+    }
+
+    [Theory]
+    // Pure black frame border — V=0 → not missing
+    [InlineData((byte)0,   (byte)0,   (byte)0,   false)]
+    // Dark grey empty bar — S=0, V≈0.16 → missing
+    [InlineData((byte)40,  (byte)40,  (byte)40,  true)]
+    // Light grey end-cap — S=0, V≈0.63 → missing
+    [InlineData((byte)160, (byte)160, (byte)160, true)]
+    // Near-white text glyph — V≈0.96 → not missing (excluded by V upper bound)
+    [InlineData((byte)245, (byte)245, (byte)245, false)]
+    // Saturated red bar fill — S=1 → not missing (filled pixel, excluded by S upper bound)
+    [InlineData((byte)0,   (byte)0,   (byte)220, false)]
+    // Anti-alias blend pixel (any saturated colour blended with grey) — S≈0.5 → not missing
+    [InlineData((byte)80,  (byte)40,  (byte)40,  false)]
+    public void IsMissingPixel_ClassifiesBoundaryCases(byte b, byte g, byte r, bool expected)
+    {
+        var hsv = Hsv.FromBgra(b, g, r);
+        Assert.Equal(expected, BarAnalyzer.IsMissingPixel(hsv));
     }
 }

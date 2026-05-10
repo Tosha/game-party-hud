@@ -27,7 +27,7 @@ Windows-only WPF tray app that displays a party HUD with live HP bars read from 
 
 ## Type reference
 
-The canonical type signatures for `HpRegion`, `Hsv`, `HpCalibration`, `MemberState`, `PartyMessage`, `ISignalingProvider`, and related types are defined in `docs/superpowers/plans/2026-04-16-game-party-hud-plan.md` under "Type reference". If you need to change a signature, update that section and every task that uses it.
+The canonical type signatures for `CaptureRegion`, `Hsv`, `BarCalibration`, `MemberState`, `PartyMessage`, `ISignalingProvider`, and related types are defined in `docs/superpowers/plans/2026-04-16-game-party-hud-plan.md` under "Type reference". If you need to change a signature, update that section and every task that uses it.
 
 ## Commit conventions
 

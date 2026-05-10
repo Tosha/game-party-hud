@@ -6,8 +6,8 @@ using GamePartyHud.Party;
 namespace GamePartyHud.Config;
 
 public sealed record AppConfig(
-    HpCalibration? HpCalibration,
-    HpRegion? NicknameRegion,
+    BarCalibration? HpCalibration,
+    CaptureRegion? NicknameRegion,
     string Nickname,
     Role Role,
     HudPosition HudPosition,
