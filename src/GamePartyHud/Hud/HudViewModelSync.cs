@@ -53,6 +53,8 @@ public sealed class HudViewModelSync
             existing.Nickname = m.Nickname;
             existing.Role = m.Role;
             existing.HpPercent = m.HpPercent ?? 0f;
+            existing.StaminaPercent = m.StaminaPercent;
+            existing.ManaPercent = m.ManaPercent;
             existing.IsStale = _state.IsStale(m, now);
         }
     }

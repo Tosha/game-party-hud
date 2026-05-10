@@ -9,9 +9,9 @@ public class LeaderElectionTests
     public void EarliestJoiner_IsLeader()
     {
         var s = new PartyState();
-        s.Apply(new StateMessage("p3", "n", Role.Tank, 1f, 300), 300);
-        s.Apply(new StateMessage("p1", "n", Role.Tank, 1f, 100), 300);
-        s.Apply(new StateMessage("p2", "n", Role.Tank, 1f, 200), 300);
+        s.Apply(new StateMessage("p3", "n", Role.Tank, 1f, null, null, 300), 300);
+        s.Apply(new StateMessage("p1", "n", Role.Tank, 1f, null, null, 100), 300);
+        s.Apply(new StateMessage("p2", "n", Role.Tank, 1f, null, null, 200), 300);
         Assert.Equal("p1", s.LeaderPeerId);
     }
 
@@ -19,9 +19,9 @@ public class LeaderElectionTests
     public void TieBreaker_IsLexicographicPeerId()
     {
         var s = new PartyState();
-        s.Apply(new StateMessage("zeta", "n", Role.Tank, 1f, 100), 300);
-        s.Apply(new StateMessage("alpha", "n", Role.Tank, 1f, 100), 300);
-        s.Apply(new StateMessage("mike", "n", Role.Tank, 1f, 100), 300);
+        s.Apply(new StateMessage("zeta", "n", Role.Tank, 1f, null, null, 100), 300);
+        s.Apply(new StateMessage("alpha", "n", Role.Tank, 1f, null, null, 100), 300);
+        s.Apply(new StateMessage("mike", "n", Role.Tank, 1f, null, null, 100), 300);
         Assert.Equal("alpha", s.LeaderPeerId);
     }
 
@@ -29,8 +29,8 @@ public class LeaderElectionTests
     public void LeaderLeaves_NextEarliestBecomesLeader()
     {
         var s = new PartyState();
-        s.Apply(new StateMessage("p1", "n", Role.Tank, 1f, 100), 100);
-        s.Apply(new StateMessage("p2", "n", Role.Tank, 1f, 200), 200);
+        s.Apply(new StateMessage("p1", "n", Role.Tank, 1f, null, null, 100), 100);
+        s.Apply(new StateMessage("p2", "n", Role.Tank, 1f, null, null, 200), 200);
         Assert.Equal("p1", s.LeaderPeerId);
         s.Apply(new ByeMessage("p1"), 210);
         Assert.Equal("p2", s.LeaderPeerId);

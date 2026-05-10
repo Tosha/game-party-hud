@@ -4,6 +4,9 @@
              Width="200" Height="24"
              Background="Transparent"
              FontFamily="Segoe UI Variable, Segoe UI">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+    </UserControl.Resources>
     <Border Padding="2,1" CornerRadius="2" Opacity="{Binding Opacity}"
             BorderBrush="#33FFFFFF" BorderThickness="1">
         <Border.Background>
@@ -18,10 +21,7 @@
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <!-- Role glyph tile (30% smaller than the previous 26px tile).
-                 Border + background brushes are role-coloured, supplied by
-                 HudMember from RoleBrushes. Glyph stays white for legibility
-                 against the per-role coloured gradient. -->
+            <!-- Role glyph tile (unchanged from the single-bar layout). -->
             <Border Grid.Column="0" Width="18" Height="18" Margin="0,0,4,0"
                     VerticalAlignment="Center"
                     CornerRadius="2"
@@ -35,9 +35,9 @@
                            VerticalAlignment="Center"/>
             </Border>
 
-            <!-- HP bar (fills remaining width). Nickname is overlaid on the bar. -->
+            <!-- Bar block: 1-3 stacked bars + hairline dividers + nickname overlay. -->
             <Grid Grid.Column="1" Width="174" Height="22" VerticalAlignment="Center">
-                <!-- Empty track -->
+                <!-- Outer empty track + border (hosts all bars under one rounded frame). -->
                 <Border CornerRadius="2"
                         BorderBrush="#44000000" BorderThickness="1">
                     <Border.Background>
@@ -47,29 +47,71 @@
                         </LinearGradientBrush>
                     </Border.Background>
                 </Border>
-                <!-- Red fill. Stops are darker than the original #FF3B3B → #C81919
-                     so the white nickname overlay (drop-shadowed) hits at least
-                     WCAG-AA contrast (6.4:1 at the lighter end, 10:1 at the
-                     darker end). Tailwind red-700 → red-900. -->
-                <Border CornerRadius="2"
-                        HorizontalAlignment="Left"
-                        Width="{Binding HpPercent, Converter={StaticResource HpWidthConverter}, ConverterParameter=174}">
-                    <Border.Background>
-                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                            <GradientStop Color="#FFB91C1C" Offset="0"/>
-                            <GradientStop Color="#FF7F1D1D" Offset="1"/>
-                        </LinearGradientBrush>
-                    </Border.Background>
-                </Border>
-                <!-- Inner white highlight stripe on the filled portion -->
-                <Border CornerRadius="2"
-                        HorizontalAlignment="Left"
-                        Height="2"
-                        VerticalAlignment="Top"
-                        Margin="1,1,0,0"
-                        Background="#33FFFFFF"
-                        Width="{Binding HpPercent, Converter={StaticResource HpWidthConverter}, ConverterParameter=172}"/>
-                <!-- Nickname overlay, drop-shadow keeps it legible over both fill and empty track -->
+
+                <!-- Stacked rows. Stamina/Mana row heights flip between "*" and "0"
+                     from code-behind based on HasStamina/HasMana so visible rows split
+                     the area equally and collapsed rows truly contribute zero (a
+                     Visibility=Collapsed child does not shrink its parent RowDefinition
+                     in WPF — the row itself must drop to 0). -->
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition x:Name="HpRowDef" Height="*"/>
+                        <RowDefinition x:Name="StaminaRowDef" Height="0"/>
+                        <RowDefinition x:Name="ManaRowDef" Height="0"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Row 0: HP (always visible) — red palette (existing). -->
+                    <Grid Grid.Row="0">
+                        <Border HorizontalAlignment="Left"
+                                Width="{Binding HpPercent, Converter={StaticResource HpWidthConverter}, ConverterParameter=174}">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                    <GradientStop Color="#FFB91C1C" Offset="0"/>
+                                    <GradientStop Color="#FF7F1D1D" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
+                        </Border>
+                        <Border HorizontalAlignment="Left"
+                                Height="2" VerticalAlignment="Top"
+                                Margin="1,1,0,0"
+                                Background="#33FFFFFF"
+                                Width="{Binding HpPercent, Converter={StaticResource HpWidthConverter}, ConverterParameter=172}"/>
+                    </Grid>
+
+                    <!-- Row 1: Stamina — amber palette. Collapsed when HasStamina = false. -->
+                    <Grid Grid.Row="1" Visibility="{Binding HasStamina, Converter={StaticResource BoolToVis}}">
+                        <!-- Hairline divider on top edge of this row. -->
+                        <Border Height="1" VerticalAlignment="Top" Background="#88000000"/>
+                        <Border HorizontalAlignment="Left"
+                                Margin="0,1,0,0"
+                                Width="{Binding StaminaPercent, Converter={StaticResource HpWidthConverter}, ConverterParameter=174}">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                    <GradientStop Color="#FFFCD34D" Offset="0"/>
+                                    <GradientStop Color="#FFCA8A04" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
+                        </Border>
+                    </Grid>
+
+                    <!-- Row 2: Mana — blue palette. Collapsed when HasMana = false. -->
+                    <Grid Grid.Row="2" Visibility="{Binding HasMana, Converter={StaticResource BoolToVis}}">
+                        <Border Height="1" VerticalAlignment="Top" Background="#88000000"/>
+                        <Border HorizontalAlignment="Left"
+                                Margin="0,1,0,0"
+                                Width="{Binding ManaPercent, Converter={StaticResource HpWidthConverter}, ConverterParameter=174}">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                    <GradientStop Color="#FF2563EB" Offset="0"/>
+                                    <GradientStop Color="#FF1E3A8A" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
+                        </Border>
+                    </Grid>
+                </Grid>
+
+                <!-- Nickname overlay spans the entire bar block; drop-shadow keeps it
+                     legible across red / amber / blue bands. -->
                 <TextBlock Text="{Binding Nickname}"
                            Foreground="#FFF2F2F2"
                            FontSize="11" FontWeight="SemiBold"

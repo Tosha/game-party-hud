@@ -25,6 +25,8 @@ public static class MessageJson
             nick = s.Nick,
             role = s.Role,
             hp = s.Hp,
+            stamina = s.Stamina,
+            mana = s.Mana,
             t = s.T
         }, Opts),
         ByeMessage b => JsonSerializer.Serialize(new { type = "bye", peerId = b.PeerId }, Opts),
@@ -48,6 +50,8 @@ public static class MessageJson
                     root.GetProperty("nick").GetString() ?? "",
                     ParseRole(root.GetProperty("role")),
                     ParseNullableFloat(root.GetProperty("hp")),
+                    ParseOptionalNullableFloat(root, "stamina"),
+                    ParseOptionalNullableFloat(root, "mana"),
                     root.GetProperty("t").GetInt64()),
                 "bye"  => new ByeMessage(root.GetProperty("peerId").GetString() ?? ""),
                 "kick" => new KickMessage(root.GetProperty("target").GetString() ?? ""),
@@ -67,4 +71,7 @@ public static class MessageJson
 
     private static float? ParseNullableFloat(JsonElement e) =>
         e.ValueKind == JsonValueKind.Null ? null : e.GetSingle();
+
+    private static float? ParseOptionalNullableFloat(JsonElement root, string name) =>
+        root.TryGetProperty(name, out var e) ? ParseNullableFloat(e) : null;
 }

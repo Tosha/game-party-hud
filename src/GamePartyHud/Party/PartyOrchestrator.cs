@@ -17,11 +17,11 @@ namespace GamePartyHud.Party;
 /// </summary>
 public sealed class PartyOrchestrator : IAsyncDisposable
 {
-    // HP changes smaller than this don't justify a network broadcast — the
+    // Bar changes smaller than this don't justify a network broadcast — the
     // visual delta on a 170-px HUD bar is sub-pixel. Receivers learn about
-    // the new value at the next ≥ 1 % move or the next heartbeat,
+    // the new value at the next ≥ 1 % move on any bar or the next heartbeat,
     // whichever comes first.
-    private const float HpChangeThreshold = 0.01f;
+    private const float BarChangeThreshold = 0.01f;
 
     // Maximum gap between broadcasts during steady state (HP/role/nickname
     // unchanged). Must stay shorter than PartyState.StaleAfterSec or
@@ -30,7 +30,9 @@ public sealed class PartyOrchestrator : IAsyncDisposable
 
     private readonly IScreenCapture _capture;
     private readonly BarAnalyzer _analyzer = new();
-    private readonly BarSmoother _smoother = new(windowSize: 3);
+    private readonly BarSmoother _hpSmoother = new(windowSize: 3);
+    private readonly BarSmoother _staminaSmoother = new(windowSize: 3);
+    private readonly BarSmoother _manaSmoother = new(windowSize: 3);
     private readonly PartyState _state;
     private readonly RelayClient _net;
     // _cfg is mutable so that nickname / role / poll-interval / calibration
@@ -47,6 +49,8 @@ public sealed class PartyOrchestrator : IAsyncDisposable
     // starts at 0 so the very first tick is always heartbeat-due, ensuring
     // peers learn we exist as soon as we join.
     private float? _lastBroadcastHp;
+    private float? _lastBroadcastStamina;
+    private float? _lastBroadcastMana;
     private string _lastBroadcastNick = "";
     private Role _lastBroadcastRole = default;
     private long _lastBroadcastAtUnix;
@@ -132,39 +136,40 @@ public sealed class PartyOrchestrator : IAsyncDisposable
         {
             try
             {
-                float? hp = null;
-                if (_cfg.HpCalibration is { } cal)
-                {
-                    var bgra = await _capture.CaptureBgraAsync(cal.Region, ct).ConfigureAwait(false);
-                    float raw = _analyzer.Analyze(bgra, cal.Region.W, cal.Region.H, cal);
-                    hp = _smoother.Push(raw);
+                float? hp = await ReadBarAsync(_cfg.HpCalibration, _hpSmoother, ct).ConfigureAwait(false);
+                float? stamina = await ReadBarAsync(_cfg.StaminaCalibration, _staminaSmoother, ct).ConfigureAwait(false);
+                float? mana = await ReadBarAsync(_cfg.ManaCalibration, _manaSmoother, ct).ConfigureAwait(false);
 
-                    LogTick(cal, bgra, raw, hp.Value);
-                }
+                LogTick(hp, stamina, mana);
 
                 long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
                 // Apply our own state locally so our card shows up on our HUD too.
                 // This always runs, even when we suppress the network broadcast —
                 // local applies are free and keep the self card refreshed.
-                _state.Apply(new StateMessage(_selfPeerId, _cfg.Nickname, _cfg.Role, hp, now), now);
+                _state.Apply(new StateMessage(_selfPeerId, _cfg.Nickname, _cfg.Role, hp, stamina, mana, now), now);
 
                 // Decide whether to actually broadcast to peers. Each WebSocket
                 // message costs one relay request inbound here PLUS one per
                 // recipient on the fan-out side, so suppressing no-op
-                // broadcasts (HP unchanged within threshold, role/nick same as
-                // last sent) compounds with party size. A heartbeat enforces a
+                // broadcasts (all bars unchanged within threshold, role/nick same
+                // as last sent) compounds with party size. A heartbeat enforces a
                 // floor so receivers don't mark us stale during quiet stretches.
-                bool hpChanged = !ApproxEqual(hp, _lastBroadcastHp, HpChangeThreshold);
+                bool barChanged =
+                       !ApproxEqual(hp,      _lastBroadcastHp,      BarChangeThreshold)
+                    || !ApproxEqual(stamina, _lastBroadcastStamina, BarChangeThreshold)
+                    || !ApproxEqual(mana,    _lastBroadcastMana,    BarChangeThreshold);
                 bool nickChanged = _cfg.Nickname != _lastBroadcastNick;
                 bool roleChanged = _cfg.Role != _lastBroadcastRole;
                 bool heartbeatDue = (now - _lastBroadcastAtUnix) >= (long)BroadcastHeartbeat.TotalSeconds;
 
-                if (hpChanged || nickChanged || roleChanged || heartbeatDue)
+                if (barChanged || nickChanged || roleChanged || heartbeatDue)
                 {
-                    var json = MessageJson.Encode(new StateMessage(_selfPeerId, _cfg.Nickname, _cfg.Role, hp, now));
+                    var json = MessageJson.Encode(new StateMessage(_selfPeerId, _cfg.Nickname, _cfg.Role, hp, stamina, mana, now));
                     await _net.BroadcastAsync(json).ConfigureAwait(false);
                     _lastBroadcastHp = hp;
+                    _lastBroadcastStamina = stamina;
+                    _lastBroadcastMana = mana;
                     _lastBroadcastNick = _cfg.Nickname;
                     _lastBroadcastRole = _cfg.Role;
                     _lastBroadcastAtUnix = now;
@@ -183,42 +188,29 @@ public sealed class PartyOrchestrator : IAsyncDisposable
         }
     }
 
-    private void LogTick(BarCalibration cal, byte[] bgra, float raw, float smoothed)
+    /// <summary>
+    /// Capture, analyze, and smooth a single bar. Returns null if no calibration is
+    /// set for this bar (the caller broadcasts null in that field, which receivers
+    /// render as "this peer doesn't track that bar").
+    /// </summary>
+    private async Task<float?> ReadBarAsync(BarCalibration? cal, BarSmoother smoother, CancellationToken ct)
+    {
+        if (cal is null) return null;
+        var bgra = await _capture.CaptureBgraAsync(cal.Region, ct).ConfigureAwait(false);
+        float raw = _analyzer.Analyze(bgra, cal.Region.W, cal.Region.H, cal);
+        return smoother.Push(raw);
+    }
+
+    private void LogTick(float? hp, float? stamina, float? mana)
     {
         _tickCounter++;
-        int w = cal.Region.W;
-        int h = cal.Region.H;
-
-        // Per-column missing-pixel count using the SAME classifier the analyzer uses.
-        // Lets us see at-a-glance whether the capture pixels look like a real bar
-        // (mostly bar columns with a tail of missing columns) or something else.
-        // Threshold mirrors BarAnalyzer.Analyze (~20 % of rows).
-        int minMatches = Math.Max(2, h / 5);
-        int barCols = 0, partial = 0, missingCols = 0;
-        for (int x = 0; x < w; x++)
-        {
-            int matches = 0;
-            for (int y = 0; y < h; y++)
-            {
-                int idx = (y * w + x) * 4;
-                var hsv = Hsv.FromBgra(bgra[idx], bgra[idx + 1], bgra[idx + 2]);
-                if (BarAnalyzer.IsMissingPixel(hsv)) matches++;
-            }
-            if (matches == 0) barCols++;
-            else if (matches < minMatches) partial++;
-            else missingCols++;
-        }
-
-        // Sample average HSV of the middle-third — sanity check that the capture
-        // contains a bar (good) or something else (region-selection issue).
-        var midAvg = CaptureDiagnostic.AverageHsv(bgra, w, h, w / 3, 2 * w / 3);
-
         Log.Info(
-            $"PartyOrchestrator tick#{_tickCounter}: raw={raw:F3} smoothed={smoothed:F3} " +
-            $"region={w}x{h}@({cal.Region.X},{cal.Region.Y}) " +
-            $"cols {barCols}/{partial}/{missingCols} bar/partial/missing; " +
-            $"mid-HSV H={midAvg.H:F0}° S={midAvg.S:F2} V={midAvg.V:F2}");
+            $"PartyOrchestrator tick#{_tickCounter}: " +
+            $"hp={FormatBar(hp)} stamina={FormatBar(stamina)} mana={FormatBar(mana)}");
     }
+
+    private static string FormatBar(float? value) =>
+        value is { } v ? v.ToString("F3", System.Globalization.CultureInfo.InvariantCulture) : "n/a";
 
     private async Task StaleTickLoopAsync(CancellationToken ct)
     {

@@ -36,6 +36,12 @@ public class ConfigStoreTests : IDisposable
             HpCalibration = new BarCalibration(
                 new CaptureRegion(0, 10, 20, 300, 18),
                 FillDirection.LTR),
+            StaminaCalibration = new BarCalibration(
+                new CaptureRegion(0, 10, 40, 300, 18),
+                FillDirection.LTR),
+            ManaCalibration = new BarCalibration(
+                new CaptureRegion(0, 10, 60, 300, 18),
+                FillDirection.LTR),
             NicknameRegion = new CaptureRegion(0, 10, 0, 300, 20),
             Nickname = "Yiawahuye",
             Role = Role.Tank,
@@ -183,5 +189,36 @@ public class ConfigStoreTests : IDisposable
         var reborn = File.ReadAllText(_tmp);
         Assert.DoesNotContain("\"fullColor\"", reborn);
         Assert.DoesNotContain("\"tolerance\"", reborn);
+    }
+
+    [Fact]
+    public void Load_OldShapeConfig_MissingStaminaAndManaCalibrations_ParseAsNull()
+    {
+        // A config.json saved before stamina/mana support contains only
+        // hpCalibration. The new optional fields default to null on load
+        // (System.Text.Json default unknown-field handling). Round-trip then
+        // re-serialises with the two new keys present (as null) — that's
+        // expected.
+        File.WriteAllText(_tmp, """
+{
+  "hpCalibration": {
+    "region": { "monitor": 0, "x": 10, "y": 20, "w": 300, "h": 18 },
+    "direction": "LTR"
+  },
+  "nicknameRegion": null,
+  "nickname": "Test",
+  "role": "Tank",
+  "hudPosition": { "x": 0, "y": 0, "monitor": 0 },
+  "hudLocked": true,
+  "lastPartyId": null,
+  "pollIntervalMs": 2000,
+  "relayUrl": ""
+}
+""");
+
+        var loaded = new ConfigStore(_tmp).Load();
+        Assert.NotNull(loaded.HpCalibration);
+        Assert.Null(loaded.StaminaCalibration);
+        Assert.Null(loaded.ManaCalibration);
     }
 }

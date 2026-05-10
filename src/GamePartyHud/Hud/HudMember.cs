@@ -58,6 +58,42 @@ public sealed class HudMember : INotifyPropertyChanged
         }
     }
 
+    private float? _staminaPercent;
+    public float? StaminaPercent
+    {
+        get => _staminaPercent;
+        set
+        {
+            float? clamped = value is { } v ? Math.Clamp(v, 0f, 1f) : (float?)null;
+            if (_staminaPercent != clamped)
+            {
+                bool hadValue = _staminaPercent.HasValue;
+                _staminaPercent = clamped;
+                Raise(nameof(StaminaPercent));
+                if (hadValue != clamped.HasValue) Raise(nameof(HasStamina));
+            }
+        }
+    }
+    public bool HasStamina => _staminaPercent.HasValue;
+
+    private float? _manaPercent;
+    public float? ManaPercent
+    {
+        get => _manaPercent;
+        set
+        {
+            float? clamped = value is { } v ? Math.Clamp(v, 0f, 1f) : (float?)null;
+            if (_manaPercent != clamped)
+            {
+                bool hadValue = _manaPercent.HasValue;
+                _manaPercent = clamped;
+                Raise(nameof(ManaPercent));
+                if (hadValue != clamped.HasValue) Raise(nameof(HasMana));
+            }
+        }
+    }
+    public bool HasMana => _manaPercent.HasValue;
+
     private bool _isStale;
     public bool IsStale
     {
