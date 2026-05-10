@@ -147,7 +147,9 @@ public sealed class PartyOrchestrator : IAsyncDisposable
                 // Apply our own state locally so our card shows up on our HUD too.
                 // This always runs, even when we suppress the network broadcast —
                 // local applies are free and keep the self card refreshed.
-                _state.Apply(new StateMessage(_selfPeerId, _cfg.Nickname, _cfg.Role, hp, now), now);
+                // Stamina/Mana are nulled here as a temporary scaffold; Task 5 of the
+                // stamina-mana-bars plan threads real captured values through.
+                _state.Apply(new StateMessage(_selfPeerId, _cfg.Nickname, _cfg.Role, hp, null, null, now), now);
 
                 // Decide whether to actually broadcast to peers. Each WebSocket
                 // message costs one relay request inbound here PLUS one per
@@ -162,7 +164,7 @@ public sealed class PartyOrchestrator : IAsyncDisposable
 
                 if (hpChanged || nickChanged || roleChanged || heartbeatDue)
                 {
-                    var json = MessageJson.Encode(new StateMessage(_selfPeerId, _cfg.Nickname, _cfg.Role, hp, now));
+                    var json = MessageJson.Encode(new StateMessage(_selfPeerId, _cfg.Nickname, _cfg.Role, hp, null, null, now));
                     await _net.BroadcastAsync(json).ConfigureAwait(false);
                     _lastBroadcastHp = hp;
                     _lastBroadcastNick = _cfg.Nickname;
