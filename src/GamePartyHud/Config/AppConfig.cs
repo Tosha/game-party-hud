@@ -7,6 +7,8 @@ namespace GamePartyHud.Config;
 
 public sealed record AppConfig(
     BarCalibration? HpCalibration,
+    BarCalibration? StaminaCalibration,
+    BarCalibration? ManaCalibration,
     CaptureRegion? NicknameRegion,
     string Nickname,
     Role Role,
@@ -49,6 +51,8 @@ public sealed record AppConfig(
 
     public static AppConfig Defaults { get; } = new(
         HpCalibration: null,
+        StaminaCalibration: null,
+        ManaCalibration: null,
         NicknameRegion: null,
         Nickname: "Player",
         Role: Role.Utility,
