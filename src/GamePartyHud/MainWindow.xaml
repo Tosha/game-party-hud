@@ -21,6 +21,18 @@
 
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="24,0,24,0">
             <StackPanel>
+                <!-- One-time disclaimer about HUD invisibility above exclusive-fullscreen
+                     games. IsOpen is set from PopulateFromConfig based on
+                     AppConfig.FullscreenDisclaimerDismissed; clicking X flips IsOpen to
+                     false, which MainWindow.xaml.cs observes and persists as
+                     FullscreenDisclaimerDismissed = true. -->
+                <ui:InfoBar x:Name="FullscreenDisclaimer"
+                            Severity="Warning"
+                            IsClosable="True"
+                            Margin="0,0,0,16"
+                            Title="If your game runs in fullscreen, the HUD may not be visible."
+                            Message="Workaround: use borderless / windowed-fullscreen mode, or drag the HUD onto a second monitor."/>
+
                 <!-- Your settings ───────────────────────────────────────── -->
                 <TextBlock Text="Your settings"
                            FontSize="18" FontWeight="SemiBold" Margin="0,0,0,12"/>

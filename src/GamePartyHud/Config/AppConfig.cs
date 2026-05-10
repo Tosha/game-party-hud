@@ -17,7 +17,8 @@ public sealed record AppConfig(
     string? LastPartyId,
     int PollIntervalMs,
     string RelayUrl,
-    string RelayFallbackUrl = "")
+    string RelayFallbackUrl = "",
+    bool FullscreenDisclaimerDismissed = false)
 {
     /// <summary>
     /// Default relay endpoint, injected at build time via the
@@ -61,7 +62,8 @@ public sealed record AppConfig(
         LastPartyId: null,
         PollIntervalMs: 2000,
         RelayUrl: DefaultRelayUrl,
-        RelayFallbackUrl: DefaultRelayFallbackUrl);
+        RelayFallbackUrl: DefaultRelayFallbackUrl,
+        FullscreenDisclaimerDismissed: false);
 }
 
 public sealed record HudPosition(double X, double Y, int Monitor);

@@ -76,6 +76,17 @@ public partial class MainWindow : FluentWindow
         _ctl = controller;
 
         RoleCombo.ItemsSource = RoleOptions;
+
+        // Wpf.Ui's InfoBar doesn't expose a public Closed routed event; the
+        // built-in close button just flips IsOpen to false. We watch the
+        // property to detect a user-initiated dismissal. The _populating
+        // guard inside the handler suppresses the initial set from
+        // PopulateFromConfig (which would otherwise look like an
+        // instant-dismiss).
+        System.ComponentModel.DependencyPropertyDescriptor
+            .FromProperty(InfoBar.IsOpenProperty, typeof(InfoBar))
+            .AddValueChanged(FullscreenDisclaimer, OnFullscreenDisclaimerIsOpenChanged);
+
         PopulateFromConfig();
         RefreshPartyState();
 
@@ -92,6 +103,7 @@ public partial class MainWindow : FluentWindow
         try
         {
             var cfg = _ctl.Config;
+            FullscreenDisclaimer.IsOpen = !cfg.FullscreenDisclaimerDismissed;
             NickText.Text = cfg.Nickname == AppConfig.Defaults.Nickname ? "" : cfg.Nickname;
             RoleCombo.SelectedItem = RoleOptions.FirstOrDefault(o => o.Role == cfg.Role) ?? RoleOptions[0];
 
@@ -505,6 +517,17 @@ public partial class MainWindow : FluentWindow
         _ctl.UpdateConfig(_ctl.Config with { ManaCalibration = null });
         SetRegionStatus(BarType.Mana, RegionStatusState.NotSet, "Not set yet.");
         Log.Info("MainWindow: Include-mana checkbox unticked; calibration cleared.");
+    }
+
+    private void OnFullscreenDisclaimerIsOpenChanged(object? sender, EventArgs e)
+    {
+        // Triggered by the InfoBar's built-in close button (IsOpen → false) and
+        // by PopulateFromConfig setting IsOpen from config (suppressed via
+        // _populating). Only the user-initiated dismiss path persists state.
+        if (_populating) return;
+        if (FullscreenDisclaimer.IsOpen) return;
+        _ctl.UpdateConfig(_ctl.Config with { FullscreenDisclaimerDismissed = true });
+        Log.Info("MainWindow: fullscreen disclaimer dismissed.");
     }
 
     private void SetPartyActionsBusy(bool busy, ProgressRing activeSpinner)
