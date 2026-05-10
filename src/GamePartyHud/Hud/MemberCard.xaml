@@ -48,13 +48,16 @@
                     </Border.Background>
                 </Border>
 
-                <!-- Stacked rows. RowDefinitions all use Height="*" so visible
-                     rows split the area equally; collapsed rows contribute 0. -->
+                <!-- Stacked rows. Stamina/Mana row heights flip between "*" and "0"
+                     from code-behind based on HasStamina/HasMana so visible rows split
+                     the area equally and collapsed rows truly contribute zero (a
+                     Visibility=Collapsed child does not shrink its parent RowDefinition
+                     in WPF — the row itself must drop to 0). -->
                 <Grid>
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="*"/>
+                        <RowDefinition x:Name="HpRowDef" Height="*"/>
+                        <RowDefinition x:Name="StaminaRowDef" Height="0"/>
+                        <RowDefinition x:Name="ManaRowDef" Height="0"/>
                     </Grid.RowDefinitions>
 
                     <!-- Row 0: HP (always visible) — red palette (existing). -->
