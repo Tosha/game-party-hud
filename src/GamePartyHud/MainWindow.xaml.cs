@@ -97,12 +97,40 @@ public partial class MainWindow : FluentWindow
 
             if (cfg.HpCalibration is { } cal)
             {
-                SetRegionStatus(RegionStatusState.Ok,
+                SetRegionStatus(BarType.Hp, RegionStatusState.Ok,
                     $"Saved {cal.Region.W}\u00D7{cal.Region.H} at ({cal.Region.X}, {cal.Region.Y}).");
             }
             else
             {
-                SetRegionStatus(RegionStatusState.NotSet, "Not set yet.");
+                SetRegionStatus(BarType.Hp, RegionStatusState.NotSet, "Not set yet.");
+            }
+
+            if (cfg.StaminaCalibration is { } sCal)
+            {
+                IncludeStaminaCheck.IsChecked = true;
+                StaminaPickRow.Visibility = Visibility.Visible;
+                SetRegionStatus(BarType.Stamina, RegionStatusState.Ok,
+                    $"Saved {sCal.Region.W}\u00D7{sCal.Region.H} at ({sCal.Region.X}, {sCal.Region.Y}).");
+            }
+            else
+            {
+                IncludeStaminaCheck.IsChecked = false;
+                StaminaPickRow.Visibility = Visibility.Collapsed;
+                SetRegionStatus(BarType.Stamina, RegionStatusState.NotSet, "Not set yet.");
+            }
+
+            if (cfg.ManaCalibration is { } mCal)
+            {
+                IncludeManaCheck.IsChecked = true;
+                ManaPickRow.Visibility = Visibility.Visible;
+                SetRegionStatus(BarType.Mana, RegionStatusState.Ok,
+                    $"Saved {mCal.Region.W}\u00D7{mCal.Region.H} at ({mCal.Region.X}, {mCal.Region.Y}).");
+            }
+            else
+            {
+                IncludeManaCheck.IsChecked = false;
+                ManaPickRow.Visibility = Visibility.Collapsed;
+                SetRegionStatus(BarType.Mana, RegionStatusState.NotSet, "Not set yet.");
             }
         }
         finally { _populating = false; }
@@ -171,37 +199,42 @@ public partial class MainWindow : FluentWindow
 
     private void OnPickRegion(object sender, RoutedEventArgs e)
     {
-        Log.Info("MainWindow: Pick-region button clicked.");
+        var bar = ParseBarType(sender);
+        Log.Info($"MainWindow: Pick-{bar}-region button clicked.");
         // Opacity=0 rather than Hide() — Hide() on a WPF window with a child
         // RegionSelectorWindow.ShowDialog has surprising interactions; being
         // invisible via Opacity=0 keeps the main window alive and nothing more.
         Opacity = 0;
         try
         {
-            var picker = new RegionSelectorWindow(
-                "Drag a tight box around your HP bar ONLY (no nickname, no other bars)");
+            var picker = new RegionSelectorWindow(PromptFor(bar));
             picker.ShowDialog();
             if (picker.Result is not { } region)
             {
-                Log.Info("MainWindow: region selection cancelled.");
+                Log.Info($"MainWindow: {bar} region selection cancelled.");
                 return;
             }
 
             var cal = new BarCalibration(region, FillDirection.LTR);
 
-            _ctl.UpdateConfig(_ctl.Config with
+            var newConfig = bar switch
             {
-                HpCalibration = cal,
-                NicknameRegion = null,
-            });
-            SetRegionStatus(RegionStatusState.Ok,
+                BarType.Hp      => _ctl.Config with { HpCalibration      = cal, NicknameRegion = null },
+                BarType.Stamina => _ctl.Config with { StaminaCalibration = cal },
+                BarType.Mana    => _ctl.Config with { ManaCalibration    = cal },
+                _ => _ctl.Config
+            };
+            _ctl.UpdateConfig(newConfig);
+
+            SetRegionStatus(bar, RegionStatusState.Ok,
                 $"Captured {region.W}\u00D7{region.H} at ({region.X}, {region.Y}).");
-            Log.Info($"MainWindow: HP region calibrated {region.W}x{region.H}@({region.X},{region.Y}).");
+            Log.Info($"MainWindow: {bar} region calibrated {region.W}x{region.H}@({region.X},{region.Y}).");
         }
         catch (Exception ex)
         {
-            Log.Error("MainWindow: OnPickRegion failed.", ex);
-            SetRegionStatus(RegionStatusState.Error, "Error: " + ex.Message);
+            var failedBar = ParseBarType(sender);
+            Log.Error($"MainWindow: OnPickRegion ({failedBar}) failed.", ex);
+            SetRegionStatus(failedBar, RegionStatusState.Error, "Error: " + ex.Message);
         }
         finally
         {
@@ -209,6 +242,17 @@ public partial class MainWindow : FluentWindow
             Activate();
         }
     }
+
+    private static BarType ParseBarType(object sender) =>
+        sender is FrameworkElement fe && Enum.TryParse<BarType>(fe.Tag as string, out var t) ? t : BarType.Hp;
+
+    private static string PromptFor(BarType bar) => bar switch
+    {
+        BarType.Hp      => "Drag a tight box around your HP bar ONLY (no nickname, no other bars)",
+        BarType.Stamina => "Drag a tight box around your STAMINA bar ONLY (no nickname, no other bars)",
+        BarType.Mana    => "Drag a tight box around your MANA bar ONLY (no nickname, no other bars)",
+        _ => ""
+    };
 
     // ------------------------------------------------------------------
     // Party actions
@@ -406,20 +450,61 @@ public partial class MainWindow : FluentWindow
         }
     }
 
-    private void SetRegionStatus(RegionStatusState state, string text)
+    private void SetRegionStatus(BarType bar, RegionStatusState state, string text)
     {
-        RegionStatus.Text = text;
+        var (textBlock, iconBlock, chip) = bar switch
+        {
+            BarType.Hp      => (RegionStatus,        RegionStatusIcon,        RegionStatusChip),
+            BarType.Stamina => (StaminaStatus,       StaminaStatusIcon,       StaminaStatusChip),
+            BarType.Mana    => (ManaStatus,          ManaStatusIcon,          ManaStatusChip),
+            _ => (RegionStatus, RegionStatusIcon, RegionStatusChip)
+        };
+
+        textBlock.Text = text;
         (string icon, string bg, string border, string fg) = state switch
         {
             RegionStatusState.Ok    => ("\u2713", "#333E8E3E", "#664CAF50", "#FFAEE6AE"),
             RegionStatusState.Error => ("\u2717", "#33C62828", "#66EF5350", "#FFFFB4B4"),
             _                       => ("\u25CB", "#22FFFFFF", "#33FFFFFF", "#CCCCCCCC"),
         };
-        RegionStatusIcon.Text = icon;
-        RegionStatusIcon.Foreground = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString(fg)!;
-        RegionStatus.Foreground = RegionStatusIcon.Foreground;
-        RegionStatusChip.Background = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString(bg)!;
-        RegionStatusChip.BorderBrush = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString(border)!;
+        iconBlock.Text = icon;
+        iconBlock.Foreground = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString(fg)!;
+        textBlock.Foreground = iconBlock.Foreground;
+        chip.Background = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString(bg)!;
+        chip.BorderBrush = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString(border)!;
+    }
+
+    private void OnIncludeStaminaChecked(object sender, RoutedEventArgs e)
+    {
+        if (_populating) return;
+        StaminaPickRow.Visibility = Visibility.Visible;
+        Log.Info("MainWindow: Include-stamina checkbox ticked.");
+        // No config write here; user must explicitly pick a region.
+    }
+
+    private void OnIncludeStaminaUnchecked(object sender, RoutedEventArgs e)
+    {
+        if (_populating) return;
+        StaminaPickRow.Visibility = Visibility.Collapsed;
+        _ctl.UpdateConfig(_ctl.Config with { StaminaCalibration = null });
+        SetRegionStatus(BarType.Stamina, RegionStatusState.NotSet, "Not set yet.");
+        Log.Info("MainWindow: Include-stamina checkbox unticked; calibration cleared.");
+    }
+
+    private void OnIncludeManaChecked(object sender, RoutedEventArgs e)
+    {
+        if (_populating) return;
+        ManaPickRow.Visibility = Visibility.Visible;
+        Log.Info("MainWindow: Include-mana checkbox ticked.");
+    }
+
+    private void OnIncludeManaUnchecked(object sender, RoutedEventArgs e)
+    {
+        if (_populating) return;
+        ManaPickRow.Visibility = Visibility.Collapsed;
+        _ctl.UpdateConfig(_ctl.Config with { ManaCalibration = null });
+        SetRegionStatus(BarType.Mana, RegionStatusState.NotSet, "Not set yet.");
+        Log.Info("MainWindow: Include-mana checkbox unticked; calibration cleared.");
     }
 
     private void SetPartyActionsBusy(bool busy, ProgressRing activeSpinner)

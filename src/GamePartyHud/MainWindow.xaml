@@ -59,6 +59,7 @@
                                Appearance="Primary"
                                Icon="Target24"
                                Content="Pick HP bar region"
+                               Tag="Hp"
                                Click="OnPickRegion"/>
                     <Border x:Name="RegionStatusChip"
                             VerticalAlignment="Center" Margin="12,0,0,0"
@@ -71,6 +72,79 @@
                                        Text="○" FontSize="12" FontWeight="Bold"
                                        VerticalAlignment="Center"/>
                             <TextBlock x:Name="RegionStatus"
+                                       VerticalAlignment="Center" Margin="6,0,0,0"
+                                       TextWrapping="Wrap" MaxWidth="320"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- Optional bars ───────────────────────────────────────── -->
+                <Separator Margin="0,28,0,0" Opacity="0.3"/>
+                <TextBlock Text="Optional bars"
+                           FontSize="18" FontWeight="SemiBold" Margin="0,20,0,12"/>
+                <TextBlock Opacity="0.75" Margin="0,0,0,10" TextWrapping="Wrap">
+                    Track stamina and mana too — picked up the same way, sent to your
+                    teammates alongside HP, and shown as additional bars on each card.
+                </TextBlock>
+
+                <CheckBox x:Name="IncludeStaminaCheck"
+                          Content="Include stamina"
+                          Margin="0,0,0,4"
+                          Checked="OnIncludeStaminaChecked"
+                          Unchecked="OnIncludeStaminaUnchecked"/>
+                <StackPanel x:Name="StaminaPickRow"
+                            Orientation="Horizontal"
+                            Margin="20,0,0,12"
+                            Visibility="Collapsed">
+                    <ui:Button x:Name="PickStaminaRegionButton"
+                               Appearance="Secondary"
+                               Icon="Target24"
+                               Content="Pick stamina bar region"
+                               Tag="Stamina"
+                               Click="OnPickRegion"/>
+                    <Border x:Name="StaminaStatusChip"
+                            VerticalAlignment="Center" Margin="12,0,0,0"
+                            Padding="10,4"
+                            CornerRadius="10"
+                            Background="#22FFFFFF"
+                            BorderBrush="#33FFFFFF" BorderThickness="1">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock x:Name="StaminaStatusIcon"
+                                       Text="○" FontSize="12" FontWeight="Bold"
+                                       VerticalAlignment="Center"/>
+                            <TextBlock x:Name="StaminaStatus"
+                                       VerticalAlignment="Center" Margin="6,0,0,0"
+                                       TextWrapping="Wrap" MaxWidth="320"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <CheckBox x:Name="IncludeManaCheck"
+                          Content="Include mana"
+                          Margin="0,0,0,4"
+                          Checked="OnIncludeManaChecked"
+                          Unchecked="OnIncludeManaUnchecked"/>
+                <StackPanel x:Name="ManaPickRow"
+                            Orientation="Horizontal"
+                            Margin="20,0,0,12"
+                            Visibility="Collapsed">
+                    <ui:Button x:Name="PickManaRegionButton"
+                               Appearance="Secondary"
+                               Icon="Target24"
+                               Content="Pick mana bar region"
+                               Tag="Mana"
+                               Click="OnPickRegion"/>
+                    <Border x:Name="ManaStatusChip"
+                            VerticalAlignment="Center" Margin="12,0,0,0"
+                            Padding="10,4"
+                            CornerRadius="10"
+                            Background="#22FFFFFF"
+                            BorderBrush="#33FFFFFF" BorderThickness="1">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock x:Name="ManaStatusIcon"
+                                       Text="○" FontSize="12" FontWeight="Bold"
+                                       VerticalAlignment="Center"/>
+                            <TextBlock x:Name="ManaStatus"
                                        VerticalAlignment="Center" Margin="6,0,0,0"
                                        TextWrapping="Wrap" MaxWidth="320"/>
                         </StackPanel>
