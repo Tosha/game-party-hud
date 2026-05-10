@@ -24,14 +24,26 @@
       below; release builds in CI override via `dotnet publish -p:RelayUrl=wss://...`,
       sourced from the GPH_RELAY_URL GitHub Actions secret in release.yml.
       The source tree must NEVER pin a specific deploy here.
+
+      RelayFallbackUrl is the secondary endpoint used when the primary is
+      unreachable (e.g. ISPs that block Cloudflare CIDR ranges where the Worker
+      is hosted). Defaults to empty — meaning no fallback — so forks that don't
+      run their own bridge build with current single-URL behaviour. Release
+      builds inject the bridge URL via -p:RelayFallbackUrl=wss://...
+      from the GPH_RELAY_FALLBACK_URL secret.
     -->
     <RelayUrl Condition="'$(RelayUrl)' == ''">wss://relay.example.invalid</RelayUrl>
+    <RelayFallbackUrl Condition="'$(RelayFallbackUrl)' == ''"></RelayFallbackUrl>
   </PropertyGroup>
 
   <ItemGroup>
     <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
       <_Parameter1>RelayUrl</_Parameter1>
       <_Parameter2>$(RelayUrl)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>RelayFallbackUrl</_Parameter1>
+      <_Parameter2>$(RelayFallbackUrl)</_Parameter2>
     </AssemblyAttribute>
   </ItemGroup>
 
