@@ -59,13 +59,15 @@ public sealed class PartyState
                         Nickname = s.Nick,
                         Role = s.Role,
                         HpPercent = s.Hp,
+                        StaminaPercent = s.Stamina,
+                        ManaPercent = s.Mana,
                         LastUpdateUnix = nowUnix
                     };
                 }
                 else
                 {
                     _members[s.PeerId] = new MemberState(
-                        s.PeerId, s.Nick, s.Role, s.Hp, nowUnix, nowUnix);
+                        s.PeerId, s.Nick, s.Role, s.Hp, s.Stamina, s.Mana, nowUnix, nowUnix);
                 }
                 _staleSet.Remove(s.PeerId);
                 changed = true;

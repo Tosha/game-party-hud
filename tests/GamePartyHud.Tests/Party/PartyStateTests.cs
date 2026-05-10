@@ -94,4 +94,26 @@ public class PartyStateTests
         Assert.Equal(1, count);
         Assert.False(IsStale(s, "p1"));
     }
+
+    [Fact]
+    public void Apply_State_PopulatesAllThreeBarFields()
+    {
+        var s = new PartyState();
+        s.Apply(new StateMessage("p1", "Yia", Role.Tank, 0.72f, 0.55f, 0.41f, 100), 100);
+        var m = s.Members["p1"];
+        Assert.Equal(0.72f, m.HpPercent);
+        Assert.Equal(0.55f, m.StaminaPercent);
+        Assert.Equal(0.41f, m.ManaPercent);
+    }
+
+    [Fact]
+    public void Apply_StateAgain_UpdatesAllThreeBars()
+    {
+        var s = new PartyState();
+        s.Apply(new StateMessage("p1", "n", Role.Tank, 0.9f, 0.8f, 0.7f, 100), 100);
+        s.Apply(new StateMessage("p1", "n", Role.Tank, 0.4f, 0.3f, null, 200), 200);
+        Assert.Equal(0.4f, s.Members["p1"].HpPercent);
+        Assert.Equal(0.3f, s.Members["p1"].StaminaPercent);
+        Assert.Null(s.Members["p1"].ManaPercent);
+    }
 }
