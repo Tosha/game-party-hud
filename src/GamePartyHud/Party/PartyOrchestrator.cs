@@ -39,7 +39,6 @@ public sealed class PartyOrchestrator : IAsyncDisposable
     // changes from the UI propagate into the broadcast loop without
     // recreating the orchestrator. Updated via <see cref="UpdateConfig"/>.
     private AppConfig _cfg;
-    private readonly string _selfPeerId;
     private readonly long _joinedAt;
     private CancellationTokenSource? _loopCts;
 
@@ -55,21 +54,24 @@ public sealed class PartyOrchestrator : IAsyncDisposable
     private Role _lastBroadcastRole = default;
     private long _lastBroadcastAtUnix;
 
-    public string SelfPeerId => _selfPeerId;
+    // Self peerId is owned by RelayClient (it may regenerate on duplicate-peer
+    // rejection during reconnect — see RelayClient.DuplicatePeerRegenThreshold).
+    // We delegate to the live value so every outbound StateMessage / ByeMessage
+    // matches the WS-level identity the relay sees, which is what peers'
+    // spoofing check compares against.
+    public string SelfPeerId => _net.SelfPeerId;
     public PartyState State => _state;
 
     public PartyOrchestrator(
         AppConfig cfg,
         IScreenCapture capture,
         PartyState state,
-        RelayClient net,
-        string selfPeerId)
+        RelayClient net)
     {
         _cfg = cfg;
         _capture = capture;
         _state = state;
         _net = net;
-        _selfPeerId = selfPeerId;
         _joinedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         _net.OnMessage += OnPeerMessage;
     }
@@ -130,7 +132,10 @@ public sealed class PartyOrchestrator : IAsyncDisposable
     private async Task PollAndBroadcastLoopAsync(CancellationToken ct)
     {
         // Deterministic per-peer jitter (0–250 ms) so 20 peers don't all broadcast on the same boundary.
-        int jitter = Math.Abs(_selfPeerId.GetHashCode()) % 250;
+        // Computed once at loop start — if the peerId later regenerates, the jitter goes stale, but
+        // that only affects timing of broadcasts within a 250 ms window; functional correctness is
+        // unaffected.
+        int jitter = Math.Abs(_net.SelfPeerId.GetHashCode()) % 250;
 
         while (!ct.IsCancellationRequested)
         {
@@ -147,7 +152,7 @@ public sealed class PartyOrchestrator : IAsyncDisposable
                 // Apply our own state locally so our card shows up on our HUD too.
                 // This always runs, even when we suppress the network broadcast —
                 // local applies are free and keep the self card refreshed.
-                _state.Apply(new StateMessage(_selfPeerId, _cfg.Nickname, _cfg.Role, hp, stamina, mana, now), now);
+                _state.Apply(new StateMessage(_net.SelfPeerId, _cfg.Nickname, _cfg.Role, hp, stamina, mana, now), now);
 
                 // Decide whether to actually broadcast to peers. Each WebSocket
                 // message costs one relay request inbound here PLUS one per
@@ -165,7 +170,7 @@ public sealed class PartyOrchestrator : IAsyncDisposable
 
                 if (barChanged || nickChanged || roleChanged || heartbeatDue)
                 {
-                    var json = MessageJson.Encode(new StateMessage(_selfPeerId, _cfg.Nickname, _cfg.Role, hp, stamina, mana, now));
+                    var json = MessageJson.Encode(new StateMessage(_net.SelfPeerId, _cfg.Nickname, _cfg.Role, hp, stamina, mana, now));
                     await _net.BroadcastAsync(json).ConfigureAwait(false);
                     _lastBroadcastHp = hp;
                     _lastBroadcastStamina = stamina;
@@ -246,7 +251,7 @@ public sealed class PartyOrchestrator : IAsyncDisposable
     {
         try
         {
-            var bye = MessageJson.Encode(new ByeMessage(_selfPeerId));
+            var bye = MessageJson.Encode(new ByeMessage(_net.SelfPeerId));
             await _net.BroadcastAsync(bye).ConfigureAwait(false);
         }
         catch { }

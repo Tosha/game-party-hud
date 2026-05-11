@@ -1,6 +1,7 @@
 using System;
 using System.Buffers;
 using System.Net.WebSockets;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -36,12 +37,30 @@ public sealed class RelayClient : IAsyncDisposable
     /// </summary>
     private static readonly TimeSpan DefaultConnectTimeout = TimeSpan.FromSeconds(5);
 
-    private readonly string _selfPeerId;
+    /// <summary>
+    /// How many consecutive <c>duplicate-peer</c> errors during reconnect we
+    /// tolerate before regenerating the peerId. The relay returns this error
+    /// when the same peerId rejoins before its previous WS has been GC'd —
+    /// observed in the field when the Cloudflare DO holds a zombie peer for
+    /// several seconds after an ungraceful socket drop. After this many
+    /// rejections we treat the old identity as poisoned and grab a fresh one
+    /// so the same client can rejoin without the user manually leaving the
+    /// party.
+    /// </summary>
+    private const int DuplicatePeerRegenThreshold = 3;
+
+    // _selfPeerId is mutable because we may regenerate it when the relay's
+    // duplicate-peer detector refuses to release our previous slot. Reads
+    // happen on the reconnect-loop thread (TryJoinViaAsync) and writes
+    // happen on the read-loop thread (Dispatch); the two are sequenced by
+    // an await between them so no explicit lock is needed.
+    private string _selfPeerId;
     private readonly Uri _primaryUri;
     private readonly Uri? _fallbackUri;
     private readonly TimeSpan _connectTimeout;
     private ClientWebSocket? _ws;
     private CancellationTokenSource? _readCts;
+    private int _consecutiveDuplicatePeerErrors;
 
     public bool IsJoined { get; private set; }
     public string SelfPeerId => _selfPeerId;
@@ -206,6 +225,13 @@ public sealed class RelayClient : IAsyncDisposable
                         welcomeTcs.TrySetException(ex);
                         return;
                     }
+                    // welcomeTcs faulted (e.g. an error frame already failed the join) —
+                    // TryJoinViaAsync owns the cleanup and the next retry. Don't spawn
+                    // a concurrent ReconnectLoopAsync that would race with it.
+                    if (welcomeTcs is { Task.IsFaulted: true })
+                    {
+                        return;
+                    }
                     Log.Warn($"RelayClient: receive error — {ex.Message}; reconnecting.");
                     _ = Task.Run(() => ReconnectLoopAsync(ct));
                     return;
@@ -218,6 +244,13 @@ public sealed class RelayClient : IAsyncDisposable
                     {
                         Log.Info("RelayClient: server closed the socket before welcome.");
                         welcomeTcs.TrySetException(new InvalidOperationException("Server closed the socket before sending welcome."));
+                        return;
+                    }
+                    if (welcomeTcs is { Task.IsFaulted: true })
+                    {
+                        // Same rationale as the receive-error branch: an error frame
+                        // already failed the join. TryJoinViaAsync handles retry; don't
+                        // start a second reconnect loop here.
                         return;
                     }
                     Log.Info("RelayClient: server closed the socket; reconnecting.");
@@ -288,6 +321,12 @@ public sealed class RelayClient : IAsyncDisposable
             case RelayProtocol.Welcome w:
                 Log.Info($"RelayClient: welcome received with {w.Members.Count} existing member(s).");
                 foreach (var id in w.Members) OnPeerConnected?.Invoke(id);
+                // A successful welcome means the relay accepted us under our
+                // current peerId, so any prior streak of duplicate-peer
+                // rejections is no longer relevant — reset the counter so a
+                // future blip starts fresh and doesn't accumulate over a long
+                // session.
+                _consecutiveDuplicatePeerErrors = 0;
                 welcomeTcs?.TrySetResult();
                 break;
             case RelayProtocol.PeerJoined j:
@@ -303,6 +342,24 @@ public sealed class RelayClient : IAsyncDisposable
                 break;
             case RelayProtocol.ErrorMessage e:
                 Log.Warn($"RelayClient: relay error — {e.Reason}");
+                if (e.Reason == "duplicate-peer")
+                {
+                    _consecutiveDuplicatePeerErrors++;
+                    if (_consecutiveDuplicatePeerErrors >= DuplicatePeerRegenThreshold)
+                    {
+                        var oldShort = _selfPeerId[..Math.Min(8, _selfPeerId.Length)];
+                        _selfPeerId = NewPeerId();
+                        var newShort = _selfPeerId[..Math.Min(8, _selfPeerId.Length)];
+                        Log.Warn(
+                            $"RelayClient: {_consecutiveDuplicatePeerErrors} consecutive duplicate-peer errors; " +
+                            $"regenerating peerId {oldShort}… → {newShort}… so we can rejoin the party.");
+                        _consecutiveDuplicatePeerErrors = 0;
+                    }
+                }
+                else
+                {
+                    _consecutiveDuplicatePeerErrors = 0;
+                }
                 welcomeTcs?.TrySetException(new InvalidOperationException($"relay rejected join: {e.Reason}"));
                 break;
         }
@@ -324,5 +381,19 @@ public sealed class RelayClient : IAsyncDisposable
         }
         _ws?.Dispose();
         IsJoined = false;
+    }
+
+    /// <summary>
+    /// Generates a fresh 20-byte (40-hex-character) peer id from the OS CSPRNG.
+    /// Matches the format used by <c>App.xaml.cs</c> when constructing the
+    /// initial peerId for <c>JoinOrCreateAsync</c>. Exposed as <c>internal</c>
+    /// so tests and the composition root can share the same canonical
+    /// implementation rather than reinventing the format.
+    /// </summary>
+    internal static string NewPeerId()
+    {
+        var bytes = new byte[20];
+        RandomNumberGenerator.Fill(bytes);
+        return Convert.ToHexString(bytes).ToLowerInvariant();
     }
 }

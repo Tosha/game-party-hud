@@ -1,7 +1,6 @@
 using System;
 using System.Diagnostics;
 using System.Reflection;
-using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -222,10 +221,9 @@ public partial class App : Application, MainWindow.IController
 
         // 20 random bytes rendered as 40-char lower-case hex. The relay uses
         // this string opaquely as the peer's identity on the wire; the rest of
-        // the app uses it as a stable id throughout the party's lifetime.
-        var selfPeerBytes = new byte[20];
-        RandomNumberGenerator.Fill(selfPeerBytes);
-        var selfPeer = Convert.ToHexString(selfPeerBytes).ToLowerInvariant();
+        // the app reads it back live from RelayClient.SelfPeerId (the client
+        // may regenerate it during reconnect to escape a duplicate-peer loop).
+        var selfPeer = RelayClient.NewPeerId();
 
         var primaryUri = new Uri($"{_config.RelayUrl.TrimEnd('/')}/party/{Uri.EscapeDataString(partyId)}");
         Uri? fallbackUri = null;
@@ -262,7 +260,7 @@ public partial class App : Application, MainWindow.IController
             return;
         }
 
-        _orch = new PartyOrchestrator(_config, _capture!, _state!, net, selfPeer);
+        _orch = new PartyOrchestrator(_config, _capture!, _state!, net);
         _orch.StartLoops();
         _currentPartyId = partyId;
         _tray!.SetPartyId(partyId);
