@@ -36,19 +36,32 @@ public sealed class ConfigStore
             var json = File.ReadAllText(_path);
             var raw = JsonSerializer.Deserialize<AppConfig>(json, _opts) ?? AppConfig.Defaults;
 
-            // RelayUrl and RelayFallbackUrl are owned by the binary, not by
-            // per-machine config. Always promote the build-time defaults (set
-            // by the GPH_RELAY_URL / GPH_RELAY_FALLBACK_URL GitHub Actions
-            // secrets at publish time) over whatever's persisted on disk.
-            // This prevents a once-saved URL from shadowing future binary
-            // rotations — the symptom we hit when config.json kept routing
-            // the app to a deleted relay endpoint after a server rename.
-            // Forks that need different URLs set their own secrets and
-            // rebuild; there is no per-machine config.json override.
+            // RelayUrl, RelayFallbackUrl and PollIntervalMs are owned by the
+            // binary, not by per-machine config. Always promote the build-time
+            // defaults (RelayUrl/RelayFallbackUrl come from the GitHub Actions
+            // secrets injected at publish time; PollIntervalMs is the hardcoded
+            // default in AppConfig.Defaults) over whatever's persisted on disk.
+            //
+            // For RelayUrl this prevents a once-saved URL from shadowing future
+            // binary rotations — the symptom we hit when config.json kept
+            // routing the app to a deleted relay endpoint after a server
+            // rename.
+            //
+            // For PollIntervalMs this means that when we tune the default in
+            // the binary (e.g. 2000 → 1000 → 700 across recent releases),
+            // existing installs pick up the new value on next launch instead
+            // of being stuck on whatever they first persisted. The trade-off
+            // is that user-tuned poll intervals are reset on launch, but
+            // there's no UI surface to tune it today and the field is small
+            // enough to live in source if a fork wants a different cadence.
+            //
+            // Forks that need different values set their own secrets / change
+            // AppConfig.Defaults and rebuild.
             return raw with
             {
                 RelayUrl = AppConfig.DefaultRelayUrl,
-                RelayFallbackUrl = AppConfig.DefaultRelayFallbackUrl
+                RelayFallbackUrl = AppConfig.DefaultRelayFallbackUrl,
+                PollIntervalMs = AppConfig.Defaults.PollIntervalMs
             };
         }
         catch (Exception)

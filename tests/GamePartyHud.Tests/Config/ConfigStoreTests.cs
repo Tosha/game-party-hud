@@ -25,11 +25,17 @@ public class ConfigStoreTests : IDisposable
     }
 
     [Fact]
-    public void RoundTrip_PreservesEverythingExceptRelayUrl()
+    public void RoundTrip_PreservesEverythingExceptBinaryOwnedFields()
     {
-        // RelayUrl is owned by the binary and not round-tripped through
-        // config.json — see Load_AlwaysOverridesPersistedRelayUrl below.
-        // Every other field is persisted verbatim.
+        // Binary-owned fields (RelayUrl, RelayFallbackUrl, PollIntervalMs)
+        // are not round-tripped through config.json — Load always promotes
+        // the build-time defaults, so a custom value would be discarded on
+        // the next launch. See the Load_AlwaysOverridesPersisted* tests
+        // below for explicit coverage of each override.
+        //
+        // Every other field IS persisted verbatim; this test pins that down
+        // by stuffing non-default values into all user-owned fields and
+        // asserting the loaded record equals the saved one.
         var store = new ConfigStore(_tmp);
         var cfg = AppConfig.Defaults with
         {
@@ -48,7 +54,6 @@ public class ConfigStoreTests : IDisposable
             HudPosition = new HudPosition(500, 400, 1),
             HudLocked = false,
             LastPartyId = "X7K2P9",
-            PollIntervalMs = 2500,
             FullscreenDisclaimerDismissed = true,
         };
         store.Save(cfg);
@@ -134,6 +139,32 @@ public class ConfigStoreTests : IDisposable
 
         var loaded = new ConfigStore(_tmp).Load();
         Assert.Equal(AppConfig.DefaultRelayFallbackUrl, loaded.RelayFallbackUrl);
+    }
+
+    [Fact]
+    public void Load_AlwaysOverridesPersistedPollIntervalMs_WithBuildDefault()
+    {
+        // PollIntervalMs is binary-owned: when the default is tuned across
+        // releases (e.g. 2000 → 1000 → 700) existing installs must pick up
+        // the new cadence on next launch rather than being stuck on whatever
+        // they first persisted. Same lifecycle treatment as RelayUrl.
+        File.WriteAllText(_tmp, """
+{
+  "hpCalibration": null,
+  "nicknameRegion": null,
+  "nickname": "Test",
+  "role": "Tank",
+  "hudPosition": { "x": 0, "y": 0, "monitor": 0 },
+  "hudLocked": true,
+  "lastPartyId": null,
+  "pollIntervalMs": 9999,
+  "relayUrl": ""
+}
+""");
+
+        var loaded = new ConfigStore(_tmp).Load();
+        Assert.Equal(AppConfig.Defaults.PollIntervalMs, loaded.PollIntervalMs);
+        Assert.NotEqual(9999, loaded.PollIntervalMs);
     }
 
     [Fact]
