@@ -23,10 +23,25 @@ public sealed class PartyOrchestrator : IAsyncDisposable
     // whichever comes first.
     private const float BarChangeThreshold = 0.01f;
 
-    // Maximum gap between broadcasts during steady state (HP/role/nickname
-    // unchanged). Must stay shorter than PartyState.StaleAfterSec or
-    // recipients will mark live peers stale during quiet periods.
-    private static readonly TimeSpan BroadcastHeartbeat = TimeSpan.FromSeconds(15);
+    // Maximum gap between broadcasts during steady state (bars/role/nickname
+    // unchanged). Doubles as the application-level keepalive that prevents
+    // NAT / firewall / Cloudflare hibernation from silently severing the
+    // long-lived WebSocket: a real payload broadcast every <= this interval
+    // keeps the TCP path warm in a way that WS-level Ping frames (which the
+    // .NET ClientWebSocket sends at KeepAliveInterval, currently 20 s) do
+    // not, because some intermediate devices only count payload bytes when
+    // refreshing connection-tracking entries.
+    //
+    // Set to 5 s after field reports of ~2–8 minute abnormal closes
+    // (`code: 1006, wasClean: false`) at the Worker DO side, observed on
+    // two unrelated ISPs. 15 s was the previous value and turned out to
+    // be too lax. Must stay strictly less than PartyState.StaleAfterSec
+    // (currently 30 s) so recipients don't mark live peers stale during
+    // quiet periods; 5 s leaves a comfortable 6× safety margin and is well
+    // within the per-peer rate-limit budget on the relay (peer cap 10/s,
+    // party cap 50/s — at the 25-peer max, total heartbeat traffic is
+    // 25 × 0.2 = 5 broadcasts/s, ≈ 10 % of the party budget).
+    private static readonly TimeSpan BroadcastHeartbeat = TimeSpan.FromSeconds(5);
 
     private readonly IScreenCapture _capture;
     private readonly BarAnalyzer _analyzer = new();
