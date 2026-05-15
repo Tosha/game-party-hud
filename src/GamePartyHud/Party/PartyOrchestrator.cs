@@ -17,11 +17,19 @@ namespace GamePartyHud.Party;
 /// </summary>
 public sealed class PartyOrchestrator : IAsyncDisposable
 {
-    // Bar changes smaller than this don't justify a network broadcast — the
-    // visual delta on a 170-px HUD bar is sub-pixel. Receivers learn about
-    // the new value at the next ≥ 1 % move on any bar or the next heartbeat,
-    // whichever comes first.
-    private const float BarChangeThreshold = 0.01f;
+    // Bar changes smaller than this don't justify a network broadcast — at
+    // 0.5 % of a 170-px HUD bar the visual delta is still sub-pixel (≈0.85
+    // px). Receivers learn about the new value at the next ≥ 0.5 % move on
+    // any bar or the next heartbeat, whichever comes first.
+    //
+    // Was 1 % originally. Tightened to 0.5 % so slow changes (passive HP
+    // regen, gradual mana recovery — typical at ~0.5–1 %/tick) cross the
+    // threshold every tick and broadcast in real time, giving healers
+    // smooth visual feedback instead of step-wise 5 s updates from the
+    // heartbeat fallback. Truly flat bars (HP pinned, no mana drain) still
+    // hit the suppression branch and only fire the 5 s heartbeat, so the
+    // Cloudflare Worker request budget is preserved during quiet stretches.
+    private const float BarChangeThreshold = 0.005f;
 
     // Maximum gap between broadcasts during steady state (bars/role/nickname
     // unchanged). Doubles as the application-level keepalive that prevents
