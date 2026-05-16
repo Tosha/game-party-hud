@@ -61,7 +61,11 @@ public sealed class ConfigStore
             {
                 RelayUrl = AppConfig.DefaultRelayUrl,
                 RelayFallbackUrl = AppConfig.DefaultRelayFallbackUrl,
-                PollIntervalMs = AppConfig.Defaults.PollIntervalMs
+                PollIntervalMs = AppConfig.Defaults.PollIntervalMs,
+                // HudScale stays user-owned (persists across launches) but is
+                // clamped to [0.5, 2.0] so a hand-edited extreme can't break
+                // the HUD layout — see SanitiseHudScale below.
+                HudScale = SanitiseHudScale(raw.HudScale),
             };
         }
         catch (Exception)
@@ -70,6 +74,15 @@ public sealed class ConfigStore
             try { File.Move(_path, _path + ".bad-" + DateTime.UtcNow.Ticks, overwrite: true); } catch { }
             return AppConfig.Defaults;
         }
+    }
+
+    private static double SanitiseHudScale(double raw)
+    {
+        // Out-of-range, NaN, or infinite values fall back to safe bounds so the
+        // HUD's LayoutTransform never receives a value that would render it
+        // invisible, infinitely large, or undefined.
+        if (double.IsNaN(raw) || double.IsInfinity(raw)) return 1.0;
+        return Math.Clamp(raw, 0.5, 2.0);
     }
 
     public void Save(AppConfig config)

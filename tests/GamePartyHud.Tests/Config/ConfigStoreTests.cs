@@ -281,4 +281,53 @@ public class ConfigStoreTests : IDisposable
         var loaded = new ConfigStore(_tmp).Load();
         Assert.False(loaded.FullscreenDisclaimerDismissed);
     }
+
+    [Fact]
+    public void Load_HudScale_AboveMax_ClampedToTwo()
+    {
+        // Hand-edited config with an extreme value must be clamped so the HUD
+        // stays usable. The grip drag clamps too, but a curious user might edit
+        // config.json directly to "stretch" the HUD.
+        File.WriteAllText(_tmp, """
+{
+  "hpCalibration": null,
+  "staminaCalibration": null,
+  "manaCalibration": null,
+  "nicknameRegion": null,
+  "nickname": "Test",
+  "role": "Tank",
+  "hudPosition": { "x": 0, "y": 0, "monitor": 0 },
+  "hudLocked": true,
+  "lastPartyId": null,
+  "pollIntervalMs": 2000,
+  "relayUrl": "",
+  "hudScale": 9.0
+}
+""");
+        var loaded = new ConfigStore(_tmp).Load();
+        Assert.Equal(2.0, loaded.HudScale);
+    }
+
+    [Fact]
+    public void Load_HudScale_BelowMin_ClampedToHalf()
+    {
+        File.WriteAllText(_tmp, """
+{
+  "hpCalibration": null,
+  "staminaCalibration": null,
+  "manaCalibration": null,
+  "nicknameRegion": null,
+  "nickname": "Test",
+  "role": "Tank",
+  "hudPosition": { "x": 0, "y": 0, "monitor": 0 },
+  "hudLocked": true,
+  "lastPartyId": null,
+  "pollIntervalMs": 2000,
+  "relayUrl": "",
+  "hudScale": 0.1
+}
+""");
+        var loaded = new ConfigStore(_tmp).Load();
+        Assert.Equal(0.5, loaded.HudScale);
+    }
 }
