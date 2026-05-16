@@ -38,6 +38,23 @@ public partial class HudWindow : Window, INotifyPropertyChanged
         ColumnCount = MemberList.Count > 10 ? 2 : 1;
     }
 
+    /// <summary>
+    /// Live scale factor applied to the entire HUD via a <c>LayoutTransform</c>.
+    /// 1.0 = baseline (matches the design dimensions). Bounded to [0.5, 2.0]
+    /// at all write sites (grip drag, config load). Bound from XAML; persisted
+    /// to <c>AppConfig.HudScale</c> by <c>App.xaml.cs</c> on drag-end and exit.
+    /// </summary>
+    public static readonly DependencyProperty ScaleProperty =
+        DependencyProperty.Register(
+            nameof(Scale), typeof(double), typeof(HudWindow),
+            new FrameworkPropertyMetadata(1.0, FrameworkPropertyMetadataOptions.AffectsMeasure));
+
+    public double Scale
+    {
+        get => (double)GetValue(ScaleProperty);
+        set => SetValue(ScaleProperty, value);
+    }
+
     private bool _isLocked = true;
     public bool IsLocked => _isLocked;
 
@@ -47,6 +64,15 @@ public partial class HudWindow : Window, INotifyPropertyChanged
 
     /// <summary>Raised when the user picks "Kick from party" on a card's context menu.</summary>
     public event Action<string>? KickRequested;
+
+    /// <summary>Raised once per drag, on grip mouse-up, with the new (clamped) scale.</summary>
+    public event Action<double>? ScaleChangeCommitted;
+
+    // Resize-grip drag state.
+    private double _scaleAtDragStart;
+    private System.Drawing.Point _dragStartScreenPx;
+    private double _unscaledWidthAtStart;
+    private double _unscaledHeightAtStart;
 
     public HudWindow()
     {
@@ -115,6 +141,7 @@ public partial class HudWindow : Window, INotifyPropertyChanged
     {
         LockGlyph.Text = _isLocked ? "🔒" : "🔓";
         RootBorder.BorderThickness = _isLocked ? new Thickness(0) : new Thickness(1);
+        ResizeGrip.Visibility = _isLocked ? Visibility.Collapsed : Visibility.Visible;
     }
 
     /// <summary>Block-drag on empty area, begin-swap-drag on a card, in unlocked mode.</summary>
@@ -123,6 +150,7 @@ public partial class HudWindow : Window, INotifyPropertyChanged
         base.OnMouseLeftButtonDown(e);
         if (_isLocked) return;
         if (IsWithinLockButton(e.OriginalSource)) return;
+        if (IsWithinResizeGrip(e.OriginalSource)) return;
 
         _dragStart = e.GetPosition(this);
         _dragSource = MemberCardUnder(_dragStart);
@@ -131,6 +159,50 @@ public partial class HudWindow : Window, INotifyPropertyChanged
         {
             DragMove();
         }
+    }
+
+    private void OnGripMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        _scaleAtDragStart      = Scale;
+        _dragStartScreenPx     = System.Windows.Forms.Cursor.Position;
+        // Recover the "unscaled" content size by undoing the current scale, so
+        // the drag-delta math is independent of where the user starts.
+        _unscaledWidthAtStart  = ActualWidth  / Math.Max(Scale, 0.01);
+        _unscaledHeightAtStart = ActualHeight / Math.Max(Scale, 0.01);
+        ResizeGrip.CaptureMouse();
+        e.Handled = true;
+    }
+
+    private void OnGripMouseMove(object sender, MouseEventArgs e)
+    {
+        if (!ResizeGrip.IsMouseCaptured) return;
+        var now = System.Windows.Forms.Cursor.Position;
+        double dx = now.X - _dragStartScreenPx.X;
+        double dy = now.Y - _dragStartScreenPx.Y;
+        // Whichever axis the user pulls hardest wins; both axes always scale
+        // together (ScaleTransform.ScaleX == ScaleY) so the result is
+        // proportional by construction.
+        double delta = Math.Max(dx / _unscaledWidthAtStart, dy / _unscaledHeightAtStart);
+        Scale = Math.Clamp(_scaleAtDragStart + delta, 0.5, 2.0);
+    }
+
+    private void OnGripMouseUp(object sender, MouseButtonEventArgs e)
+    {
+        if (!ResizeGrip.IsMouseCaptured) return;
+        ResizeGrip.ReleaseMouseCapture();
+        ScaleChangeCommitted?.Invoke(Scale);
+        e.Handled = true;
+    }
+
+    private bool IsWithinResizeGrip(object source)
+    {
+        var d = source as DependencyObject;
+        while (d is not null)
+        {
+            if (ReferenceEquals(d, ResizeGrip)) return true;
+            d = VisualTreeHelper.GetParent(d);
+        }
+        return false;
     }
 
     protected override void OnMouseMove(MouseEventArgs e)

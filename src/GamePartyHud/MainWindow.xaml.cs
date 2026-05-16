@@ -43,6 +43,10 @@ public partial class MainWindow : FluentWindow
 
         void UpdateConfig(AppConfig cfg);
 
+        /// <summary>Restores the HUD to its baseline position (100, 100) and scale 1.0.
+        /// Called from the Reset button in the MainWindow's "HUD layout" section.</summary>
+        void ResetHudLayout();
+
         Task CreatePartyAsync();
         Task JoinPartyAsync(string partyId);
         Task LeavePartyAsync();
@@ -544,6 +548,12 @@ public partial class MainWindow : FluentWindow
     private void OnCloseToTray(object sender, RoutedEventArgs e)
     {
         Hide();
+    }
+
+    private void OnResetHud(object sender, RoutedEventArgs e)
+    {
+        _ctl.ResetHudLayout();
+        Log.Info("MainWindow: Reset HUD layout clicked.");
     }
 
     private async void OnQuitApp(object sender, RoutedEventArgs e)

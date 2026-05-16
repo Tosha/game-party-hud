@@ -19,38 +19,55 @@
                 <GradientStop Color="#66121215" Offset="1"/>
             </LinearGradientBrush>
         </Border.Background>
-        <StackPanel>
-            <Grid HorizontalAlignment="Right" Margin="0,0,0,4">
-                <Button x:Name="LockButton" Width="20" Height="20"
-                        Background="Transparent" BorderThickness="0"
-                        Click="OnLockButtonClick"
-                        Padding="0"
-                        Focusable="False"
-                        Cursor="Hand">
-                    <TextBlock x:Name="LockGlyph" Text="🔒" FontSize="11"
-                               Foreground="#CCFFFFFF"/>
-                </Button>
-            </Grid>
-            <ItemsControl x:Name="Members">
-                <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <hud:ColumnMajorUniformGrid Rows="10"
-                                                    Columns="{Binding ColumnCount,
-                                                              RelativeSource={RelativeSource AncestorType=Window}}"/>
-                    </ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                        <hud:MemberCard Margin="2,1">
-                            <hud:MemberCard.ContextMenu>
-                                <ContextMenu>
-                                    <MenuItem Header="Kick from party" Click="OnKickClick"/>
-                                </ContextMenu>
-                            </hud:MemberCard.ContextMenu>
-                        </hud:MemberCard>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-        </StackPanel>
+        <Border.LayoutTransform>
+            <ScaleTransform
+                ScaleX="{Binding Scale, RelativeSource={RelativeSource AncestorType=Window}}"
+                ScaleY="{Binding Scale, RelativeSource={RelativeSource AncestorType=Window}}"/>
+        </Border.LayoutTransform>
+        <Grid>
+            <StackPanel>
+                <Grid HorizontalAlignment="Right" Margin="0,0,0,4">
+                    <Button x:Name="LockButton" Width="20" Height="20"
+                            Background="Transparent" BorderThickness="0"
+                            Click="OnLockButtonClick"
+                            Padding="0"
+                            Focusable="False"
+                            Cursor="Hand">
+                        <TextBlock x:Name="LockGlyph" Text="🔒" FontSize="11"
+                                   Foreground="#CCFFFFFF"/>
+                    </Button>
+                </Grid>
+                <ItemsControl x:Name="Members">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <hud:ColumnMajorUniformGrid Rows="10"
+                                                        Columns="{Binding ColumnCount,
+                                                                  RelativeSource={RelativeSource AncestorType=Window}}"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <hud:MemberCard Margin="2,1">
+                                <hud:MemberCard.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="Kick from party" Click="OnKickClick"/>
+                                    </ContextMenu>
+                                </hud:MemberCard.ContextMenu>
+                            </hud:MemberCard>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+            <Polygon x:Name="ResizeGrip"
+                     Width="10" Height="10"
+                     HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                     Points="10,0 0,10 10,10"
+                     Fill="#88FFFFFF"
+                     Cursor="SizeNWSE"
+                     Visibility="Collapsed"
+                     MouseLeftButtonDown="OnGripMouseDown"
+                     MouseMove="OnGripMouseMove"
+                     MouseLeftButtonUp="OnGripMouseUp"/>
+        </Grid>
     </Border>
 </Window>
