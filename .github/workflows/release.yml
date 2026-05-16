@@ -81,3 +81,68 @@ jobs:
           generate_release_notes: true
           prerelease: ${{ contains(github.ref_name, '-') }}
           files: GamePartyHud-${{ github.ref_name }}-win-x64.zip
+
+      - name: Announce release on Discord
+        continue-on-error: true
+        shell: pwsh
+        env:
+          GPH_DISCORD_WEBHOOK_URL: ${{ secrets.GPH_DISCORD_WEBHOOK_URL }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:GPH_DISCORD_WEBHOOK_URL)) {
+              Write-Host "GPH_DISCORD_WEBHOOK_URL not configured; skipping Discord announcement."
+              exit 0
+          }
+
+          # gh release view runs against the just-created release; GitHub
+          # guarantees the prior action's call has committed the release
+          # before returning, so there's no race here.
+          $release = gh release view $env:TAG_NAME --json name,body,url,isPrerelease |
+                     ConvertFrom-Json
+
+          # Discord embed description has a 4096-char limit. Truncate with
+          # a "see full release" footer link so long release notes never
+          # break the request.
+          $desc = $release.body
+          if ($desc.Length -gt 3900) {
+              $desc = $desc.Substring(0, 3900) + "`n`n…notes truncated, [see full release]($($release.url))"
+          }
+
+          # Decimal Discord color values.
+          # Stable  = green 0x2ECC71 = 3066993
+          # Prerel. = amber 0xFFA500 = 16753920
+          $color  = if ($release.isPrerelease) { 16753920 } else { 3066993 }
+          $footer = if ($release.isPrerelease) { "Prerelease" } else { "Release" }
+
+          $payload = @{
+              embeds = @(
+                  @{
+                      title       = $release.name
+                      url         = $release.url
+                      description = $desc
+                      color       = $color
+                      footer      = @{ text = $footer }
+                  }
+              )
+              # Defensive: release notes mentioning @here / @everyone
+              # would ping the channel otherwise. Same posture as
+              # src/GamePartyHud/Network/DiscordNotifier.cs.
+              allowed_mentions = @{ parse = @() }
+          }
+          $body = $payload | ConvertTo-Json -Depth 6 -Compress
+
+          try {
+              Invoke-RestMethod -Uri $env:GPH_DISCORD_WEBHOOK_URL `
+                                -Method Post `
+                                -ContentType 'application/json' `
+                                -Body $body | Out-Null
+              Write-Host "Discord release notification sent for $($release.name)."
+          }
+          catch {
+              # continue-on-error means this Write-Error won't fail the
+              # whole job, but the message + Discord's response body land
+              # in the workflow log for diagnosis.
+              Write-Error "Discord release notification failed: $($_.Exception.Message)"
+              if ($_.ErrorDetails) { Write-Error $_.ErrorDetails.Message }
+          }
