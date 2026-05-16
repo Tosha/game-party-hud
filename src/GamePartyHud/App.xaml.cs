@@ -32,6 +32,7 @@ public partial class App : Application, MainWindow.IController
     private PartyOrchestrator? _orch;
     private string? _currentPartyId;
     private MainWindow? _main;
+    private IDiscordNotifier? _discord;
 
     // -- MainWindow.IController surface --------------------------------------
 
@@ -71,10 +72,10 @@ public partial class App : Application, MainWindow.IController
     }
 
     Task MainWindow.IController.CreatePartyAsync() =>
-        JoinOrCreateAsync(PartyIdGenerator.Generate());
+        JoinOrCreateAsync(PartyIdGenerator.Generate(), wasCreated: true);
 
     Task MainWindow.IController.JoinPartyAsync(string partyId) =>
-        JoinOrCreateAsync(partyId);
+        JoinOrCreateAsync(partyId, wasCreated: false);
 
     Task MainWindow.IController.LeavePartyAsync() => LeavePartyAsync();
 
@@ -130,6 +131,11 @@ public partial class App : Application, MainWindow.IController
 
         _capture = new WindowsScreenCapture();
         Log.Info("Screen capture: WindowsScreenCapture (GDI BitBlt).");
+
+        _discord = new DiscordNotifier(AppConfig.DefaultDiscordWebhookUrl);
+        Log.Info(string.IsNullOrWhiteSpace(AppConfig.DefaultDiscordWebhookUrl)
+            ? "Discord notifications: disabled (no webhook URL compiled in)."
+            : "Discord notifications: enabled.");
 
         _state = new PartyState();
         _state.Changed += () => PartyStateChanged?.Invoke();
@@ -233,7 +239,7 @@ public partial class App : Application, MainWindow.IController
 
     // -- party lifecycle -----------------------------------------------------
 
-    private async Task JoinOrCreateAsync(string partyId)
+    private async Task JoinOrCreateAsync(string partyId, bool wasCreated)
     {
         // One-party rule: refuse to start a new one without explicit Leave.
         if (_orch is not null || _currentPartyId is not null)
@@ -294,7 +300,23 @@ public partial class App : Application, MainWindow.IController
         _store!.Save(_config);
         Log.Info($"Party '{partyId}' joined. Self peer id={selfPeer}. Capture+broadcast loop started.");
 
+        if (wasCreated)
+        {
+            // Fire-and-forget — Discord must never gate party creation. The
+            // wrapper catches everything so a 4xx / network blip / DNS hiccup
+            // can't surface as an unobserved task exception in the global
+            // handler.
+            _ = NotifyDiscordPartyCreatedAsync(_config.Nickname, partyId);
+        }
+
         PartyStateChanged?.Invoke();
+    }
+
+    private async Task NotifyDiscordPartyCreatedAsync(string nickname, string partyId)
+    {
+        if (_discord is null) return;
+        try { await _discord.NotifyPartyCreatedAsync(nickname, partyId); }
+        catch (Exception ex) { Log.Warn("Discord notification failed: " + ex.Message); }
     }
 
     private async Task LeavePartyAsync()
@@ -369,6 +391,7 @@ public partial class App : Application, MainWindow.IController
             };
             try { store.Save(_config); } catch (Exception ex) { Log.Error("Final config save failed.", ex); }
         }
+        (_discord as IDisposable)?.Dispose();
         _tray?.Dispose();
         _capture?.Dispose();
         base.OnExit(e);

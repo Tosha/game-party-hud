@@ -83,6 +83,10 @@ Gamers who play together in small-to-medium groups (up to 20 people) in games th
 - **Zero hosting cost.** Players' apps connect directly to each other using free public infrastructure. No paid servers.
 - **Free to use.** No accounts, no subscriptions.
 
+### Telemetry
+
+- The official release binary sends a single notification (`{nickname} created a party with id {partyId}`) to the project's Discord whenever you **create** a party. Nothing is sent when you join an existing party, and nothing else is sent at any other time. The webhook URL is compiled into the official build only; forks and source builds without the `GPH_DISCORD_WEBHOOK_URL` secret send nothing.
+
 ### Safety & compatibility
 
 - Works with anti-cheat systems (the app is an overlay that reads screen pixels — same category as OBS or Discord overlay; does not touch the game process).

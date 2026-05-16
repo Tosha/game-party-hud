@@ -57,6 +57,7 @@ jobs:
         env:
           GPH_RELAY_URL: ${{ secrets.GPH_RELAY_URL }}
           GPH_RELAY_FALLBACK_URL: ${{ secrets.GPH_RELAY_FALLBACK_URL }}
+          GPH_DISCORD_WEBHOOK_URL: ${{ secrets.GPH_DISCORD_WEBHOOK_URL }}
         run: >
           dotnet publish src/GamePartyHud/GamePartyHud.csproj
           -c Release
@@ -66,6 +67,7 @@ jobs:
           -p:IncludeNativeLibrariesForSelfExtract=true
           "-p:RelayUrl=${env:GPH_RELAY_URL}"
           "-p:RelayFallbackUrl=${env:GPH_RELAY_FALLBACK_URL}"
+          "-p:DiscordWebhookUrl=${env:GPH_DISCORD_WEBHOOK_URL}"
 
       - name: Zip release
         shell: pwsh
