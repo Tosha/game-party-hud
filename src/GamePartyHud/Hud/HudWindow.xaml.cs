@@ -38,6 +38,23 @@ public partial class HudWindow : Window, INotifyPropertyChanged
         ColumnCount = MemberList.Count > 10 ? 2 : 1;
     }
 
+    /// <summary>
+    /// Live scale factor applied to the entire HUD via a <c>LayoutTransform</c>.
+    /// 1.0 = baseline (matches the design dimensions). Bounded to [0.5, 2.0]
+    /// at all write sites (grip drag, config load). Bound from XAML; persisted
+    /// to <c>AppConfig.HudScale</c> by <c>App.xaml.cs</c> on drag-end and exit.
+    /// </summary>
+    public static readonly DependencyProperty ScaleProperty =
+        DependencyProperty.Register(
+            nameof(Scale), typeof(double), typeof(HudWindow),
+            new FrameworkPropertyMetadata(1.0, FrameworkPropertyMetadataOptions.AffectsMeasure));
+
+    public double Scale
+    {
+        get => (double)GetValue(ScaleProperty);
+        set => SetValue(ScaleProperty, value);
+    }
+
     private bool _isLocked = true;
     public bool IsLocked => _isLocked;
 
