@@ -34,6 +34,15 @@
     -->
     <RelayUrl Condition="'$(RelayUrl)' == ''">wss://relay.example.invalid</RelayUrl>
     <RelayFallbackUrl Condition="'$(RelayFallbackUrl)' == ''"></RelayFallbackUrl>
+    <!--
+      Build-time Discord webhook injection. Default is empty: empty URL means
+      the notifier is a no-op (see DiscordNotifier.cs). Local dev builds and
+      forks that don't set GPH_DISCORD_WEBHOOK_URL in CI simply don't ping
+      Discord; no failure mode to handle. Release builds inject the real URL
+      via -p:DiscordWebhookUrl=... from the GPH_DISCORD_WEBHOOK_URL secret
+      in release.yml.
+    -->
+    <DiscordWebhookUrl Condition="'$(DiscordWebhookUrl)' == ''"></DiscordWebhookUrl>
   </PropertyGroup>
 
   <ItemGroup>
@@ -44,6 +53,10 @@
     <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
       <_Parameter1>RelayFallbackUrl</_Parameter1>
       <_Parameter2>$(RelayFallbackUrl)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>DiscordWebhookUrl</_Parameter1>
+      <_Parameter2>$(DiscordWebhookUrl)</_Parameter2>
     </AssemblyAttribute>
   </ItemGroup>
 
