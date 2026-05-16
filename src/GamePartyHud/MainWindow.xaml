@@ -163,6 +163,19 @@
                     </Border>
                 </StackPanel>
 
+                <!-- HUD layout ─────────────────────────────────────────── -->
+                <Separator Margin="0,28,0,0" Opacity="0.3"/>
+                <TextBlock Text="HUD layout"
+                           FontSize="18" FontWeight="SemiBold" Margin="0,20,0,12"/>
+                <TextBlock Opacity="0.75" Margin="0,0,0,10" TextWrapping="Wrap"
+                           Text="Unlock the HUD to drag it around or resize it from the bottom-right corner. Use this if you lose it off-screen or want to start over."/>
+                <ui:Button x:Name="ResetHudButton"
+                           Content="Reset HUD position &amp; size"
+                           Icon="ArrowReset24"
+                           Appearance="Secondary"
+                           Padding="14,6"
+                           Click="OnResetHud"/>
+
                 <!-- Party ───────────────────────────────────────────────── -->
                 <Separator Margin="0,28,0,0" Opacity="0.3"/>
                 <TextBlock Text="Party"
