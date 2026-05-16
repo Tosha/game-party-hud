@@ -58,16 +58,16 @@
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
             </StackPanel>
-            <Border x:Name="ResizeGrip"
-                    Width="10" Height="10"
-                    HorizontalAlignment="Right" VerticalAlignment="Bottom"
-                    Background="#88FFFFFF"
-                    CornerRadius="1"
-                    Cursor="SizeNWSE"
-                    Visibility="Collapsed"
-                    MouseLeftButtonDown="OnGripMouseDown"
-                    MouseMove="OnGripMouseMove"
-                    MouseLeftButtonUp="OnGripMouseUp"/>
+            <Polygon x:Name="ResizeGrip"
+                     Width="10" Height="10"
+                     HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                     Points="10,0 0,10 10,10"
+                     Fill="#88FFFFFF"
+                     Cursor="SizeNWSE"
+                     Visibility="Collapsed"
+                     MouseLeftButtonDown="OnGripMouseDown"
+                     MouseMove="OnGripMouseMove"
+                     MouseLeftButtonUp="OnGripMouseUp"/>
         </Grid>
     </Border>
 </Window>
