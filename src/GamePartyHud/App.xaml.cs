@@ -122,10 +122,12 @@ public partial class App : Application, MainWindow.IController
         _sync = new HudViewModelSync(_state, _hud.MemberList);
         _hud.Left = _config.HudPosition.X;
         _hud.Top = _config.HudPosition.Y;
+        _hud.Scale = Math.Clamp(_config.HudScale, 0.5, 2.0);
         _hud.Show();
-        Log.Info($"HUD opened at ({_hud.Left}, {_hud.Top}).");
+        Log.Info($"HUD opened at ({_hud.Left}, {_hud.Top}) scale={_hud.Scale:F2}.");
 
         _hud.KickRequested += OnKickRequested;
+        _hud.ScaleChangeCommitted += OnHudScaleChanged;
 
         _tray = new TrayIcon();
         _tray.ShowMainWindowRequested += () => _main?.ShowAndActivate();
@@ -186,6 +188,13 @@ public partial class App : Application, MainWindow.IController
             MessageBox.Show($"Log folder:\n{Log.LogDirectory}",
                 "Game Party HUD", MessageBoxButton.OK, MessageBoxImage.Information);
         }
+    }
+
+    private void OnHudScaleChanged(double newScale)
+    {
+        _config = _config with { HudScale = newScale };
+        try { _store?.Save(_config); }
+        catch (Exception ex) { Log.Error("Failed to persist HudScale after drag.", ex); }
     }
 
     private async void OnKickRequested(string target)
@@ -337,7 +346,11 @@ public partial class App : Application, MainWindow.IController
         }
         if (_hud is { } h && _store is { } store)
         {
-            _config = _config with { HudPosition = new HudPosition(h.Left, h.Top, 0) };
+            _config = _config with
+            {
+                HudPosition = new HudPosition(h.Left, h.Top, 0),
+                HudScale = h.Scale,
+            };
             try { store.Save(_config); } catch (Exception ex) { Log.Error("Final config save failed.", ex); }
         }
         _tray?.Dispose();
