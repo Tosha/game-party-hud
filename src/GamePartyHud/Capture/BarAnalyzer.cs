@@ -4,72 +4,59 @@ namespace GamePartyHud.Capture;
 
 /// <summary>
 /// Reads a bar's fill percentage from a captured BGRA bitmap by classifying each
-/// column as "missing" (the bar's empty/grey background) or "not missing" (the
-/// bar's filled portion or any overlay text), then finding the transition from
-/// the anchor side. Current fraction = 1 - (missing columns / total columns).
+/// column as "filled" or "missing" and finding the transition from the anchor side.
+/// Current fraction = 1 - (missing columns / total columns).
 ///
-/// The pixel classifier is colour-agnostic: it identifies any sufficiently
-/// desaturated, mid-value pixel as part of the bar's empty region, regardless
-/// of what colour the filled portion would be. This is robust to:
-///   - text overlays in the middle of the bar (near-white, excluded by the V upper bound),
-///   - the dark frame border above/below the bar (pure black, excluded by the V lower bound),
+/// A column is classified as "filled" if it contains a contiguous vertical run
+/// of saturated pixels (the bar's coloured fill) at least
+/// <see cref="StableRun"/>+1 rows tall; otherwise it is "missing". This is
+/// robust to:
+///   - white text overlays anywhere inside the bar (text is desaturated and
+///     never produces a long saturated run),
+///   - dark text-label backgrounds that overlay either side of the bar (e.g.
+///     the mana bar renders "138/260" centred over a darker box that
+///     interrupts both the empty grey and the filled blue underneath),
+///   - the dark frame border above/below the bar (a few rows of S≈0),
 ///   - users picking a region 1–2 px outside the bar,
 ///   - subtle vertical gradient inside both the filled and the empty regions,
-/// and naturally extends to non-red bars (stamina, mana) without per-bar tuning.
+/// and naturally extends to non-red bars (stamina, mana) without per-bar
+/// tuning.
 /// </summary>
 public sealed class BarAnalyzer
 {
     // Number of consecutive same-state columns required to declare a stable
-    // initial state and, separately, to detect a transition. With the tight S
-    // threshold above, the per-column classifier is no longer fooled by text
-    // anti-alias rows, so cross-column noise is rare. A run of 2 is sufficient
-    // to absorb the 1-px anti-alias edge that separates the bar's filled
-    // portion from its empty tail.
+    // initial state and, separately, to detect a transition. A run of 2 is
+    // sufficient to absorb the 1-px anti-alias edge that separates the bar's
+    // filled portion from its empty tail.
     private const int StableRun = 2;
 
     /// <summary>
-    /// Maximum saturation for a pixel to count as part of the bar's empty/missing region.
-    /// Set deliberately low: real captures of the empty bar (and its light-grey
-    /// gradient end-cap) show S values of 0.000–0.04 — they're true neutrals.
-    /// Anti-alias pixels along in-bar text glyph edges blend the white text onto
-    /// the saturated red bar fill, so they retain a small but nonzero S
-    /// (typically 0.08–0.20). A 0.05 threshold cleanly separates these
-    /// populations and stops the analyzer from misclassifying text-edge rows
-    /// as "missing" inside the filled portion of the bar.
+    /// Minimum saturation for a pixel to count as part of the bar's coloured
+    /// fill. Set deliberately low: even the darkest mana-bar pixels have
+    /// S ≈ 0.4–0.6, while desaturated greys (empty bar, anti-alias edges of
+    /// white text overlays, dark text-label backgrounds) are all under 0.05.
+    /// A 0.10 threshold cleanly separates the two populations.
     /// </summary>
-    public const float MissingMaxSaturation = 0.05f;
+    public const float FilledMinSaturation = 0.10f;
 
-    /// <summary>Minimum value for a pixel to count as missing — excludes the pure-black frame border.</summary>
-    public const float MissingMinValue = 0.05f;
-
-    /// <summary>Maximum value for a pixel to count as missing — excludes near-white text glyphs that overlay the bar.</summary>
-    public const float MissingMaxValue = 0.70f;
-
-    /// <summary>
-    /// True if <paramref name="hsv"/> looks like a pixel from the empty/missing portion of the
-    /// bar — desaturated grey within a bounded value range. Excludes the bar's frame border
-    /// (pure black, V&lt;<see cref="MissingMinValue"/>) and any overlay text glyphs (near-white,
-    /// V&gt;<see cref="MissingMaxValue"/>) so they are classified as "neither filled nor missing"
-    /// rather than falsely counted as missing.
-    /// </summary>
-    public static bool IsMissingPixel(Hsv hsv)
-    {
-        return hsv.S <= MissingMaxSaturation
-            && hsv.V >= MissingMinValue
-            && hsv.V <= MissingMaxValue;
-    }
+    /// <summary>True if <paramref name="hsv"/> looks like a pixel from the bar's
+    /// coloured fill — saturated enough to not be confused with text overlay
+    /// anti-alias, dark frame, or empty-bar grey.</summary>
+    public static bool IsFilledPixel(Hsv hsv) => hsv.S >= FilledMinSaturation;
 
     public float Analyze(ReadOnlySpan<byte> bgra, int width, int height, BarCalibration cal)
     {
         if (width <= 0 || height <= 0) return 0f;
         if (bgra.Length < width * height * 4) throw new ArgumentException("bgra too small", nameof(bgra));
 
-        // A column is classified as "missing" if at least ~20% of its rows are
-        // missing pixels. The 20% threshold tolerates white text glyphs in the
-        // middle and the frame at top/bottom while still firmly rejecting stray
-        // single-row noise.
+        // A column is classified as "filled" if its longest contiguous run of
+        // saturated pixels is at least ~1/5 of the bar's height. This is the
+        // only reliable signature of an actual bar fill — text overlays (on
+        // either filled or empty side) never produce a long run of saturated
+        // pixels, while a real bar fill always does (typically the full bar
+        // height with maybe a few rows of text interruption).
         int sampleRows = height;
-        int minMatches = Math.Max(2, sampleRows / 5);
+        int minFilledRun = Math.Max(StableRun, sampleRows / 5);
 
         bool ltr = cal.Direction == FillDirection.LTR;
 
@@ -78,14 +65,23 @@ public sealed class BarAnalyzer
         for (int i = 0; i < width; i++)
         {
             int col = ltr ? i : (width - 1 - i);
-            int matches = 0;
+            int currentRun = 0;
+            int longestRun = 0;
             for (int y = 0; y < height; y++)
             {
                 int idx = (y * width + col) * 4;
                 var hsv = Hsv.FromBgra(bgra[idx], bgra[idx + 1], bgra[idx + 2]);
-                if (IsMissingPixel(hsv)) matches++;
+                if (IsFilledPixel(hsv))
+                {
+                    currentRun++;
+                    if (currentRun > longestRun) longestRun = currentRun;
+                }
+                else
+                {
+                    currentRun = 0;
+                }
             }
-            colMissing[i] = matches >= minMatches;
+            colMissing[i] = longestRun < minFilledRun;
             if (colMissing[i]) missingCount++;
         }
 

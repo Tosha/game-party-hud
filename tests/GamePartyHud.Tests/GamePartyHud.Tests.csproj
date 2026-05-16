@@ -21,5 +21,6 @@
 
   <ItemGroup>
     <None Include="Capture\HpBarExamples\*.png" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Capture\ManaBarExamples\*.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

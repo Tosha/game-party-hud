@@ -97,21 +97,23 @@ public class BarAnalyzerTests
     }
 
     [Theory]
-    // Pure black frame border — V=0 → not missing
+    // Pure black frame border — S=0 → not filled
     [InlineData((byte)0,   (byte)0,   (byte)0,   false)]
-    // Dark grey empty bar — S=0, V≈0.16 → missing
-    [InlineData((byte)40,  (byte)40,  (byte)40,  true)]
-    // Light grey end-cap — S=0, V≈0.63 → missing
-    [InlineData((byte)160, (byte)160, (byte)160, true)]
-    // Near-white text glyph — V≈0.96 → not missing (excluded by V upper bound)
+    // Dark grey empty bar — S=0 → not filled
+    [InlineData((byte)40,  (byte)40,  (byte)40,  false)]
+    // Light grey end-cap — S=0 → not filled
+    [InlineData((byte)160, (byte)160, (byte)160, false)]
+    // Near-white text glyph — S=0 → not filled
     [InlineData((byte)245, (byte)245, (byte)245, false)]
-    // Saturated red bar fill — S=1 → not missing (filled pixel, excluded by S upper bound)
-    [InlineData((byte)0,   (byte)0,   (byte)220, false)]
-    // Anti-alias blend pixel (any saturated colour blended with grey) — S≈0.5 → not missing
-    [InlineData((byte)80,  (byte)40,  (byte)40,  false)]
-    public void IsMissingPixel_ClassifiesBoundaryCases(byte b, byte g, byte r, bool expected)
+    // Saturated red bar fill — S=1 → filled
+    [InlineData((byte)0,   (byte)0,   (byte)220, true)]
+    // Dark saturated mana-bar blue (BGR ≈ 130,84,57) — S≈0.56 → filled
+    [InlineData((byte)130, (byte)84,  (byte)57,  true)]
+    // White-text anti-alias edge on dark mana background — S≈0.04 → not filled
+    [InlineData((byte)139, (byte)141, (byte)144, false)]
+    public void IsFilledPixel_ClassifiesBoundaryCases(byte b, byte g, byte r, bool expected)
     {
         var hsv = Hsv.FromBgra(b, g, r);
-        Assert.Equal(expected, BarAnalyzer.IsMissingPixel(hsv));
+        Assert.Equal(expected, BarAnalyzer.IsFilledPixel(hsv));
     }
 }
