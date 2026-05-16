@@ -54,6 +54,22 @@ public partial class App : Application, MainWindow.IController
         catch (Exception ex) { Log.Error("Failed to persist config.", ex); }
     }
 
+    void MainWindow.IController.ResetHudLayout()
+    {
+        if (_hud is null) return;
+        _hud.Left  = AppConfig.Defaults.HudPosition.X;
+        _hud.Top   = AppConfig.Defaults.HudPosition.Y;
+        _hud.Scale = AppConfig.Defaults.HudScale;
+        _config = _config with
+        {
+            HudPosition = AppConfig.Defaults.HudPosition,
+            HudScale    = AppConfig.Defaults.HudScale,
+        };
+        try { _store?.Save(_config); }
+        catch (Exception ex) { Log.Error("Failed to persist config after HUD reset.", ex); }
+        Log.Info("HUD layout reset to defaults.");
+    }
+
     Task MainWindow.IController.CreatePartyAsync() =>
         JoinOrCreateAsync(PartyIdGenerator.Generate());
 
