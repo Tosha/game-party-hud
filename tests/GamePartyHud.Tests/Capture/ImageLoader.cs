@@ -46,4 +46,7 @@ internal static class ImageLoader
 
     public static string SamplePath(string filename) =>
         Path.Combine(AppContext.BaseDirectory, "Capture", "HpBarExamples", filename);
+
+    public static string ManaSamplePath(string filename) =>
+        Path.Combine(AppContext.BaseDirectory, "Capture", "ManaBarExamples", filename);
 }

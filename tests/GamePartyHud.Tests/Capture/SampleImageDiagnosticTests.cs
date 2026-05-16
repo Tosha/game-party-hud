@@ -69,7 +69,7 @@ public class SampleImageDiagnosticTests
     [Fact]
     public void CurrentAnalyzer_AgainstAllSamples_PrintsTable()
     {
-        _out.WriteLine($"Thresholds: Smax={BarAnalyzer.MissingMaxSaturation:F2}, Vmin={BarAnalyzer.MissingMinValue:F2}, Vmax={BarAnalyzer.MissingMaxValue:F2}");
+        _out.WriteLine($"Threshold: FilledMinSaturation={BarAnalyzer.FilledMinSaturation:F2}");
         _out.WriteLine("");
         _out.WriteLine("file".PadRight(30) + "expected  actual   diff");
 
