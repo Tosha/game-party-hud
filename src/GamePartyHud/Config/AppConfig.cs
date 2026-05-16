@@ -41,6 +41,18 @@ public sealed record AppConfig(
     /// </summary>
     public static string DefaultRelayFallbackUrl { get; } = ResolveAssemblyMetadata("RelayFallbackUrl", fallback: "");
 
+    /// <summary>
+    /// Discord webhook endpoint for the party-creation notification. Injected
+    /// at build time via the <c>DiscordWebhookUrl</c> MSBuild property (see
+    /// <c>GamePartyHud.csproj</c>). Empty string by default; release builds in
+    /// CI substitute the real URL from the <c>GPH_DISCORD_WEBHOOK_URL</c>
+    /// GitHub Actions secret. Empty URL = notifier is a no-op (see
+    /// <c>DiscordNotifier</c>). Not a per-machine config field; never
+    /// persisted in <c>config.json</c>.
+    /// </summary>
+    public static string DefaultDiscordWebhookUrl { get; } =
+        ResolveAssemblyMetadata("DiscordWebhookUrl", fallback: "");
+
     private static string ResolveAssemblyMetadata(string key, string fallback)
     {
         var fromMetadata = typeof(AppConfig).Assembly
