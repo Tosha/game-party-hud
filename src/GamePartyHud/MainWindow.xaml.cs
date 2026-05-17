@@ -108,6 +108,13 @@ public partial class MainWindow : FluentWindow
         {
             var cfg = _ctl.Config;
             FullscreenDisclaimer.IsOpen = !cfg.FullscreenDisclaimerDismissed;
+            // Collapse the whole control (not just its inner content) when
+            // dismissed, otherwise wpfui's InfoBar keeps its layout slot
+            // even at IsOpen=false and leaves ~30px of empty space at the
+            // top of the window.
+            FullscreenDisclaimer.Visibility = cfg.FullscreenDisclaimerDismissed
+                ? Visibility.Collapsed
+                : Visibility.Visible;
             NickText.Text = cfg.Nickname == AppConfig.Defaults.Nickname ? "" : cfg.Nickname;
             RoleCombo.SelectedItem = RoleOptions.FirstOrDefault(o => o.Role == cfg.Role) ?? RoleOptions[0];
 
@@ -193,7 +200,22 @@ public partial class MainWindow : FluentWindow
 
     private void OnPartyIdInputChanged(object sender, TextChangedEventArgs e)
     {
-        JoinButton.IsEnabled = (PartyIdInput.Text?.Trim().Length == 6);
+        UpdateJoinButtonState();
+    }
+
+    /// <summary>
+    /// Drives both the enabled state and the visual Appearance of the Join
+    /// button: green (Success) when a complete 6-character party id has been
+    /// entered, plain Secondary otherwise. Called from input changes and
+    /// from the busy-state helper.
+    /// </summary>
+    private void UpdateJoinButtonState(bool busy = false)
+    {
+        bool valid = (PartyIdInput.Text?.Trim().Length == 6);
+        JoinButton.IsEnabled = !busy && valid;
+        JoinButton.Appearance = (!busy && valid)
+            ? ControlAppearance.Success
+            : ControlAppearance.Secondary;
     }
 
     private void OnPartyIdInputKeyDown(object sender, KeyEventArgs e)
@@ -530,6 +552,7 @@ public partial class MainWindow : FluentWindow
         // _populating). Only the user-initiated dismiss path persists state.
         if (_populating) return;
         if (FullscreenDisclaimer.IsOpen) return;
+        FullscreenDisclaimer.Visibility = Visibility.Collapsed;
         _ctl.UpdateConfig(_ctl.Config with { FullscreenDisclaimerDismissed = true });
         Log.Info("MainWindow: fullscreen disclaimer dismissed.");
     }
@@ -537,7 +560,7 @@ public partial class MainWindow : FluentWindow
     private void SetPartyActionsBusy(bool busy, ProgressRing activeSpinner)
     {
         CreateButton.IsEnabled = !busy;
-        JoinButton.IsEnabled = !busy && (PartyIdInput.Text?.Trim().Length == 6);
+        UpdateJoinButtonState(busy);
         activeSpinner.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
     }
 
@@ -550,10 +573,11 @@ public partial class MainWindow : FluentWindow
         Hide();
     }
 
-    private void OnResetHud(object sender, RoutedEventArgs e)
+    private void OnOpenSettings(object sender, RoutedEventArgs e)
     {
-        _ctl.ResetHudLayout();
-        Log.Info("MainWindow: Reset HUD layout clicked.");
+        var dlg = new SettingsWindow(_ctl) { Owner = this };
+        dlg.ShowDialog();
+        Log.Info("MainWindow: Settings dialog closed.");
     }
 
     private async void OnQuitApp(object sender, RoutedEventArgs e)
