@@ -64,9 +64,8 @@
                 <TextBlock Text="Profile" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,10"/>
 
                 <!-- Nickname (left, flex) + Role (right, fixed) on one row.
-                     3-row grid keeps both labels aligned at the top and both
-                     inputs aligned at the bottom; the helper text lives in
-                     the middle row of the Nickname column only. -->
+                     2-row grid: labels on top, inputs below. Helper text
+                     lives in the Nickname label's tooltip. -->
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -75,15 +74,12 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
                     <TextBlock Grid.Row="0" Grid.Column="0"
-                               Text="Nickname" FontWeight="SemiBold" Margin="0,0,0,2"/>
-                    <TextBlock Grid.Row="1" Grid.Column="0"
-                               Opacity="0.75" Margin="0,0,16,6" TextWrapping="Wrap"
-                               Text="What your teammates see on the HUD."/>
-                    <ui:TextBox Grid.Row="2" Grid.Column="0"
+                               Text="Nickname" FontWeight="SemiBold" Margin="0,0,0,2"
+                               ToolTip="What your teammates see on the HUD."/>
+                    <ui:TextBox Grid.Row="1" Grid.Column="0"
                                 x:Name="NickText" MaxLength="32"
                                 Margin="0,0,16,0"
                                 PlaceholderText="Your character name"
@@ -91,7 +87,7 @@
 
                     <TextBlock Grid.Row="0" Grid.Column="1"
                                Text="Role" FontWeight="SemiBold" Margin="0,0,0,2"/>
-                    <ComboBox Grid.Row="2" Grid.Column="1"
+                    <ComboBox Grid.Row="1" Grid.Column="1"
                               x:Name="RoleCombo" Width="160"
                               SelectionChanged="OnRoleChanged">
                         <ComboBox.ItemTemplate>
