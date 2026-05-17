@@ -60,14 +60,16 @@
                         <RowDefinition x:Name="ManaRowDef" Height="0"/>
                     </Grid.RowDefinitions>
 
-                    <!-- Row 0: HP (always visible) — red palette (existing). -->
+                    <!-- Row 0: HP (always visible) — darker red palette so the
+                         white nickname overlay keeps WCAG-style contrast even
+                         when stamina/mana stripes appear below. -->
                     <Grid Grid.Row="0">
                         <Border HorizontalAlignment="Left"
                                 Width="{Binding HpPercent, Converter={StaticResource HpWidthConverter}, ConverterParameter=174}">
                             <Border.Background>
                                 <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                                    <GradientStop Color="#FFB91C1C" Offset="0"/>
-                                    <GradientStop Color="#FF7F1D1D" Offset="1"/>
+                                    <GradientStop Color="#FF821414" Offset="0"/>
+                                    <GradientStop Color="#FF591414" Offset="1"/>
                                 </LinearGradientBrush>
                             </Border.Background>
                         </Border>
@@ -78,23 +80,24 @@
                                 Width="{Binding HpPercent, Converter={StaticResource HpWidthConverter}, ConverterParameter=172}"/>
                     </Grid>
 
-                    <!-- Row 1: Stamina — amber palette. Collapsed when HasStamina = false. -->
+                    <!-- Row 1: Stamina — darker amber. The original FCD34D was
+                         nearly white-yellow and washed out the nickname; dropped
+                         to ~60% intensity for the top stop. -->
                     <Grid Grid.Row="1" Visibility="{Binding HasStamina, Converter={StaticResource BoolToVis}}">
-                        <!-- Hairline divider on top edge of this row. -->
                         <Border Height="1" VerticalAlignment="Top" Background="#88000000"/>
                         <Border HorizontalAlignment="Left"
                                 Margin="0,1,0,0"
                                 Width="{Binding StaminaPercent, Converter={StaticResource HpWidthConverter}, ConverterParameter=174}">
                             <Border.Background>
                                 <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                                    <GradientStop Color="#FFFCD34D" Offset="0"/>
-                                    <GradientStop Color="#FFCA8A04" Offset="1"/>
+                                    <GradientStop Color="#FF977E2E" Offset="0"/>
+                                    <GradientStop Color="#FF795202" Offset="1"/>
                                 </LinearGradientBrush>
                             </Border.Background>
                         </Border>
                     </Grid>
 
-                    <!-- Row 2: Mana — blue palette. Collapsed when HasMana = false. -->
+                    <!-- Row 2: Mana — darker blue palette. -->
                     <Grid Grid.Row="2" Visibility="{Binding HasMana, Converter={StaticResource BoolToVis}}">
                         <Border Height="1" VerticalAlignment="Top" Background="#88000000"/>
                         <Border HorizontalAlignment="Left"
@@ -102,8 +105,8 @@
                                 Width="{Binding ManaPercent, Converter={StaticResource HpWidthConverter}, ConverterParameter=174}">
                             <Border.Background>
                                 <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                                    <GradientStop Color="#FF2563EB" Offset="0"/>
-                                    <GradientStop Color="#FF1E3A8A" Offset="1"/>
+                                    <GradientStop Color="#FF1A45A4" Offset="0"/>
+                                    <GradientStop Color="#FF152961" Offset="1"/>
                                 </LinearGradientBrush>
                             </Border.Background>
                         </Border>
