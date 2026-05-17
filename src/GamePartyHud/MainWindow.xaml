@@ -14,7 +14,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>   <!-- Title bar -->
             <RowDefinition Height="Auto"/>   <!-- Fullscreen disclaimer -->
-            <RowDefinition Height="*"/>      <!-- Two-column content -->
+            <RowDefinition Height="Auto"/>   <!-- Two-column content (Auto, not *, so the window auto-sizes flush with the footer) -->
             <RowDefinition Height="Auto"/>   <!-- Footer -->
         </Grid.RowDefinitions>
 
