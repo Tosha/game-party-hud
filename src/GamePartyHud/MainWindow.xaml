@@ -74,6 +74,7 @@
                               Background="Transparent"
                               FontSize="13"
                               VerticalAlignment="Center"
+                              ToolTip="Active character preset. Switch to load a different character's nickname, role, and bar regions. Click ✏ on a row to rename, ✕ to delete, or '+ New preset' to add another."
                               SelectionChanged="OnPresetChanged">
                         <!-- Override the wpfui ComboBoxItem default MinHeight
                              (which produces ~50px-tall rows) so the dropdown
