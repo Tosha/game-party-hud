@@ -592,8 +592,10 @@ public partial class MainWindow : FluentWindow
             // deadlock.
             var bgra = _capture.CaptureBgraAsync(cal.Region).AsTask().GetAwaiter().GetResult();
             var pickTimeResult = BarRegionValidator.Validate(cal.Region, bgra, isPickTime: true);
-            card.SetPickTimeValidation(
-                pickTimeResult.Level == ValidationLevel.Ok ? null : pickTimeResult);
+            // Always push the result (Ok included) so the status icon
+            // reflects the pick-time evaluation and live ticks won't change
+            // it. See BarCard._statusApplied semantics.
+            card.SetPickTimeValidation(pickTimeResult);
 
             Log.Info($"MainWindow: {bar} region calibrated {region.W}x{region.H}@({region.X},{region.Y}).");
         }
