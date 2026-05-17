@@ -17,7 +17,11 @@ public sealed record AppConfig(
     string RelayUrl,
     string RelayFallbackUrl = "",
     bool FullscreenDisclaimerDismissed = false,
-    double HudScale = 1.0)
+    double HudScale = 1.0,
+    string HpBarColor = "#FF821414",
+    string StaminaBarColor = "#FF977E2E",
+    string ManaBarColor = "#FF1A45A4",
+    double HudBackgroundOpacity = 0.40)
 {
     /// <summary>
     /// Default relay endpoint, injected at build time via the

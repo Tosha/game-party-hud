@@ -70,6 +70,10 @@ public class ConfigStoreTests : IDisposable
             HudLocked = false,
             LastPartyId = "X7K2P9",
             FullscreenDisclaimerDismissed = true,
+            HpBarColor = "#FF112233",
+            StaminaBarColor = "#FF445566",
+            ManaBarColor = "#FF778899",
+            HudBackgroundOpacity = 0.75,
         };
         store.Save(cfg);
         AssertConfigsEqual(cfg, store.Load());
@@ -485,5 +489,49 @@ public class ConfigStoreTests : IDisposable
         var loaded = new ConfigStore(_tmp).Load();
         Assert.Equal(2, loaded.Presets.Count);
         Assert.NotEqual(loaded.Presets[0].Id, loaded.Presets[1].Id);
+    }
+
+    [Fact]
+    public void Load_HudBackgroundOpacity_AboveOne_ClampedToOne()
+    {
+        File.WriteAllText(_tmp, """
+{
+  "presets": [
+    { "id": "default", "name": "Default", "nickname": "T", "role": "Tank",
+      "hpCalibration": null, "staminaCalibration": null, "manaCalibration": null }
+  ],
+  "activePresetId": "default",
+  "hudPosition": { "x": 0, "y": 0 },
+  "hudLocked": true,
+  "lastPartyId": null,
+  "pollIntervalMs": 700,
+  "relayUrl": "",
+  "hudBackgroundOpacity": 5.0
+}
+""");
+        var loaded = new ConfigStore(_tmp).Load();
+        Assert.Equal(1.0, loaded.HudBackgroundOpacity);
+    }
+
+    [Fact]
+    public void Load_HudBackgroundOpacity_BelowMin_ClampedToTenth()
+    {
+        File.WriteAllText(_tmp, """
+{
+  "presets": [
+    { "id": "default", "name": "Default", "nickname": "T", "role": "Tank",
+      "hpCalibration": null, "staminaCalibration": null, "manaCalibration": null }
+  ],
+  "activePresetId": "default",
+  "hudPosition": { "x": 0, "y": 0 },
+  "hudLocked": true,
+  "lastPartyId": null,
+  "pollIntervalMs": 700,
+  "relayUrl": "",
+  "hudBackgroundOpacity": 0.0
+}
+""");
+        var loaded = new ConfigStore(_tmp).Load();
+        Assert.Equal(0.10, loaded.HudBackgroundOpacity);
     }
 }
