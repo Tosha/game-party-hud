@@ -293,6 +293,130 @@ public partial class MainWindow : FluentWindow
         return $"{baseName} {DateTime.UtcNow.Ticks}"; // pathological fallback
     }
 
+    /// <summary>
+    /// Pencil icon click → enter inline rename mode for the clicked row.
+    /// Keeps the dropdown open so the TextBox stays visible while the user types.
+    /// </summary>
+    private void OnPresetRenameClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement fe || fe.Tag is not string id) return;
+        var item = _presetItems.FirstOrDefault(i => i.Id == id);
+        if (item is null) return;
+
+        foreach (var other in _presetItems) other.IsEditing = false; // only one row in edit at a time
+        item.IsEditing = true;
+        PresetCombo.IsDropDownOpen = true;
+
+        // Defer focus until after the visual swap completes so the new TextBox exists.
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            var textBox = FindTextBoxForPreset(id);
+            if (textBox is not null)
+            {
+                textBox.Focus();
+                textBox.SelectAll();
+            }
+        }), System.Windows.Threading.DispatcherPriority.Input);
+    }
+
+    private System.Windows.Controls.TextBox? FindTextBoxForPreset(string id)
+    {
+        // Walk the dropdown's visual tree to find the TextBox whose Tag matches id.
+        // Uses System.Windows.Controls.TextBox (the bare <TextBox> in XAML) rather
+        // than wpfui's Wpf.Ui.Controls.TextBox.
+        foreach (var obj in _presetItems)
+        {
+            var container = PresetCombo.ItemContainerGenerator.ContainerFromItem(obj) as ComboBoxItem;
+            if (container is null) continue;
+            var tb = FindChild<System.Windows.Controls.TextBox>(container, t => (t.Tag as string) == id);
+            if (tb is not null) return tb;
+        }
+        return null;
+    }
+
+    private static T? FindChild<T>(DependencyObject parent, Func<T, bool> match) where T : DependencyObject
+    {
+        for (int i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(parent); i++)
+        {
+            var child = System.Windows.Media.VisualTreeHelper.GetChild(parent, i);
+            if (child is T t && match(t)) return t;
+            var grand = FindChild<T>(child, match);
+            if (grand is not null) return grand;
+        }
+        return null;
+    }
+
+    private void OnPresetRenameKeyDown(object sender, KeyEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.TextBox tb || tb.Tag is not string id) return;
+        if (e.Key == Key.Enter)
+        {
+            e.Handled = true;
+            CommitOrRevertRename(id, tb, commit: true);
+        }
+        else if (e.Key == Key.Escape)
+        {
+            e.Handled = true;
+            CommitOrRevertRename(id, tb, commit: false);
+        }
+    }
+
+    private void OnPresetRenameLostFocus(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.TextBox tb || tb.Tag is not string id) return;
+        CommitOrRevertRename(id, tb, commit: true);
+    }
+
+    private void CommitOrRevertRename(string id, System.Windows.Controls.TextBox tb, bool commit)
+    {
+        var item = _presetItems.FirstOrDefault(i => i.Id == id);
+        if (item is null) return;
+
+        if (!commit)
+        {
+            var stored = _ctl.Config.Presets.FirstOrDefault(p => p.Id == id);
+            if (stored is not null) item.Name = stored.Name;
+            item.IsEditing = false;
+            return;
+        }
+
+        var raw = (tb.Text ?? "").Trim();
+        if (raw.Length == 0)
+        {
+            // Empty → revert to stored name.
+            var stored = _ctl.Config.Presets.FirstOrDefault(p => p.Id == id);
+            if (stored is not null) item.Name = stored.Name;
+            item.IsEditing = false;
+            return;
+        }
+
+        bool collides = _ctl.Config.Presets.Any(p => p.Id != id && p.Name == raw);
+        if (collides)
+        {
+            System.Windows.MessageBox.Show(
+                $"A preset named '{raw}' already exists.",
+                "Game Party HUD",
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Warning);
+            var stored = _ctl.Config.Presets.FirstOrDefault(p => p.Id == id);
+            if (stored is not null) item.Name = stored.Name;
+            item.IsEditing = false;
+            return;
+        }
+
+        var cfg = _ctl.Config;
+        var updated = cfg with
+        {
+            Presets = cfg.Presets
+                .Select(p => p.Id == id ? p with { Name = raw } : p)
+                .ToList(),
+        };
+        _ctl.UpdateConfig(updated);
+        item.Name = raw;
+        item.IsEditing = false;
+        Log.Info($"MainWindow: renamed preset Id={id} to '{raw}'.");
+    }
+
     private void RefreshPartyState()
     {
         var id = _ctl.CurrentPartyId;
