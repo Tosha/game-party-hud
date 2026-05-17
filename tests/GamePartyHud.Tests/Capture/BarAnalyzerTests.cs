@@ -6,7 +6,7 @@ namespace GamePartyHud.Tests.Capture;
 public class BarAnalyzerTests
 {
     private static readonly BarCalibration RedLtr = new(
-        Region: new CaptureRegion(0, 0, 0, 200, 10),
+        Region: new CaptureRegion(0, 0, 200, 10),
         Direction: FillDirection.LTR);
 
     private static byte[] Bar(float ratio) => SyntheticBitmap.HorizontalBar(

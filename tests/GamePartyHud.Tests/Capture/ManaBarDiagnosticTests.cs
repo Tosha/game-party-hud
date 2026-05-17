@@ -66,7 +66,7 @@ public class ManaBarDiagnosticTests
         foreach (var (file, expected) in Samples)
         {
             var (bgra, w, h) = ImageLoader.Load(ImageLoader.ManaSamplePath(file));
-            var cal = new BarCalibration(new CaptureRegion(0, 0, 0, w, h), FillDirection.LTR);
+            var cal = new BarCalibration(new CaptureRegion(0, 0, w, h), FillDirection.LTR);
             var actual = new BarAnalyzer().Analyze(bgra, w, h, cal);
             float diff = actual - expected;
             totalAbsDiff += Math.Abs(diff);

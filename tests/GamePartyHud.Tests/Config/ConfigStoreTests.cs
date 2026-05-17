@@ -40,15 +40,15 @@ public class ConfigStoreTests : IDisposable
         var cfg = AppConfig.Defaults with
         {
             HpCalibration = new BarCalibration(
-                new CaptureRegion(0, 10, 20, 300, 18),
+                new CaptureRegion(10, 20, 300, 18),
                 FillDirection.LTR),
             StaminaCalibration = new BarCalibration(
-                new CaptureRegion(0, 10, 40, 300, 18),
+                new CaptureRegion(10, 40, 300, 18),
                 FillDirection.LTR),
             ManaCalibration = new BarCalibration(
-                new CaptureRegion(0, 10, 60, 300, 18),
+                new CaptureRegion(10, 60, 300, 18),
                 FillDirection.LTR),
-            NicknameRegion = new CaptureRegion(0, 10, 0, 300, 20),
+            NicknameRegion = new CaptureRegion(10, 0, 300, 20),
             Nickname = "Yiawahuye",
             Role = Role.Tank,
             HudPosition = new HudPosition(500, 400, 1),
@@ -212,7 +212,7 @@ public class ConfigStoreTests : IDisposable
         var loaded = store.Load();
 
         Assert.NotNull(loaded.HpCalibration);
-        Assert.Equal(new CaptureRegion(0, 10, 20, 300, 18), loaded.HpCalibration!.Region);
+        Assert.Equal(new CaptureRegion(10, 20, 300, 18), loaded.HpCalibration!.Region);
         Assert.Equal(FillDirection.LTR, loaded.HpCalibration.Direction);
 
         // Round-trip: save and re-read; the reborn JSON must not contain the

@@ -1,3 +1,3 @@
 namespace GamePartyHud.Capture;
 
-public sealed record CaptureRegion(int Monitor, int X, int Y, int W, int H);
+public sealed record CaptureRegion(int X, int Y, int W, int H);

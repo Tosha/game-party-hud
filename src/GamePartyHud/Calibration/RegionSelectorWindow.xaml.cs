@@ -69,7 +69,6 @@ public partial class RegionSelectorWindow : Window
             Canvas.GetTop(Selection) + Selection.Height));
 
         Result = new CaptureRegion(
-            Monitor: 0, // Single-monitor assumption for v0.1.0; the capture layer uses absolute coords.
             X: (int)Math.Round(topLeftScreen.X),
             Y: (int)Math.Round(topLeftScreen.Y),
             W: (int)Math.Round(bottomRightScreen.X - topLeftScreen.X),
