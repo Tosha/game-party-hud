@@ -107,6 +107,8 @@ public partial class MainWindow : FluentWindow
         try
         {
             var cfg = _ctl.Config;
+            var ap = cfg.ActivePreset;
+            var defaultPreset = AppConfig.Defaults.ActivePreset;
             FullscreenDisclaimer.IsOpen = !cfg.FullscreenDisclaimerDismissed;
             // Collapse the whole control (not just its inner content) when
             // dismissed, otherwise wpfui's InfoBar keeps its layout slot
@@ -115,15 +117,15 @@ public partial class MainWindow : FluentWindow
             FullscreenDisclaimer.Visibility = cfg.FullscreenDisclaimerDismissed
                 ? Visibility.Collapsed
                 : Visibility.Visible;
-            NickText.Text = cfg.Nickname == AppConfig.Defaults.Nickname ? "" : cfg.Nickname;
-            RoleCombo.SelectedItem = RoleOptions.FirstOrDefault(o => o.Role == cfg.Role) ?? RoleOptions[0];
+            NickText.Text = ap.Nickname == defaultPreset.Nickname ? "" : ap.Nickname;
+            RoleCombo.SelectedItem = RoleOptions.FirstOrDefault(o => o.Role == ap.Role) ?? RoleOptions[0];
             // Prepopulate the join input with the last party id the user
             // joined or created. The TextChanged handler will pick this up
             // and flip the Join button to green if it's a complete id,
             // so a returning user can rejoin with a single click.
             PartyIdInput.Text = cfg.LastPartyId ?? "";
 
-            if (cfg.HpCalibration is { } cal)
+            if (ap.HpCalibration is { } cal)
             {
                 SetRegionStatus(BarType.Hp, RegionStatusState.Ok,
                     $"Saved {cal.Region.W}\u00D7{cal.Region.H} at ({cal.Region.X}, {cal.Region.Y}).");
@@ -133,7 +135,7 @@ public partial class MainWindow : FluentWindow
                 SetRegionStatus(BarType.Hp, RegionStatusState.NotSet, "Not set yet.");
             }
 
-            if (cfg.StaminaCalibration is { } sCal)
+            if (ap.StaminaCalibration is { } sCal)
             {
                 IncludeStaminaCheck.IsChecked = true;
                 StaminaPickRow.Visibility = Visibility.Visible;
@@ -147,7 +149,7 @@ public partial class MainWindow : FluentWindow
                 SetRegionStatus(BarType.Stamina, RegionStatusState.NotSet, "Not set yet.");
             }
 
-            if (cfg.ManaCalibration is { } mCal)
+            if (ap.ManaCalibration is { } mCal)
             {
                 IncludeManaCheck.IsChecked = true;
                 ManaPickRow.Visibility = Visibility.Visible;
@@ -199,7 +201,7 @@ public partial class MainWindow : FluentWindow
         if (_populating) return;
         var nick = NickText.Text?.Trim() ?? "";
         if (nick.Length == 0) return;
-        _ctl.UpdateConfig(_ctl.Config with { Nickname = nick });
+        _ctl.UpdateConfig(_ctl.Config.UpdatePreset(p => p with { Nickname = nick }));
         Log.Info($"MainWindow: nickname changed to '{nick}'.");
     }
 
@@ -236,7 +238,7 @@ public partial class MainWindow : FluentWindow
     {
         if (_populating) return;
         if (RoleCombo.SelectedItem is not RoleOption opt) return;
-        _ctl.UpdateConfig(_ctl.Config with { Role = opt.Role });
+        _ctl.UpdateConfig(_ctl.Config.UpdatePreset(p => p with { Role = opt.Role }));
         Log.Info($"MainWindow: role changed to {opt.Role}.");
     }
 
@@ -262,9 +264,9 @@ public partial class MainWindow : FluentWindow
 
             var newConfig = bar switch
             {
-                BarType.Hp      => _ctl.Config with { HpCalibration      = cal },
-                BarType.Stamina => _ctl.Config with { StaminaCalibration = cal },
-                BarType.Mana    => _ctl.Config with { ManaCalibration    = cal },
+                BarType.Hp      => _ctl.Config.UpdatePreset(p => p with { HpCalibration      = cal }),
+                BarType.Stamina => _ctl.Config.UpdatePreset(p => p with { StaminaCalibration = cal }),
+                BarType.Mana    => _ctl.Config.UpdatePreset(p => p with { ManaCalibration    = cal }),
                 _ => _ctl.Config
             };
             _ctl.UpdateConfig(newConfig);
@@ -448,14 +450,15 @@ public partial class MainWindow : FluentWindow
 
     private bool ValidateBeforeJoiningParty()
     {
-        if (_ctl.Config.HpCalibration is null)
+        var ap = _ctl.Config.ActivePreset;
+        if (ap.HpCalibration is null)
         {
             SetPartyStatus("Set your HP bar region first (see 'Pick HP bar region' above).",
                 InfoBarSeverity.Warning);
             return false;
         }
-        if (string.IsNullOrWhiteSpace(_ctl.Config.Nickname)
-            || _ctl.Config.Nickname == AppConfig.Defaults.Nickname)
+        if (string.IsNullOrWhiteSpace(ap.Nickname)
+            || ap.Nickname == AppConfig.Defaults.ActivePreset.Nickname)
         {
             SetPartyStatus("Enter your nickname first.", InfoBarSeverity.Warning);
             NickText.Focus();
@@ -529,7 +532,7 @@ public partial class MainWindow : FluentWindow
     {
         if (_populating) return;
         StaminaPickRow.Visibility = Visibility.Collapsed;
-        _ctl.UpdateConfig(_ctl.Config with { StaminaCalibration = null });
+        _ctl.UpdateConfig(_ctl.Config.UpdatePreset(p => p with { StaminaCalibration = null }));
         SetRegionStatus(BarType.Stamina, RegionStatusState.NotSet, "Not set yet.");
         Log.Info("MainWindow: Include-stamina checkbox unticked; calibration cleared.");
     }
@@ -545,7 +548,7 @@ public partial class MainWindow : FluentWindow
     {
         if (_populating) return;
         ManaPickRow.Visibility = Visibility.Collapsed;
-        _ctl.UpdateConfig(_ctl.Config with { ManaCalibration = null });
+        _ctl.UpdateConfig(_ctl.Config.UpdatePreset(p => p with { ManaCalibration = null }));
         SetRegionStatus(BarType.Mana, RegionStatusState.NotSet, "Not set yet.");
         Log.Info("MainWindow: Include-mana checkbox unticked; calibration cleared.");
     }

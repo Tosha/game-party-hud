@@ -122,7 +122,8 @@ public partial class App : Application, MainWindow.IController
         {
             _store = new ConfigStore();
             _config = _store.Load();
-            Log.Info($"Config loaded. Nickname='{_config.Nickname}', Role={_config.Role}, HpCalibration={(_config.HpCalibration is null ? "none" : "present")}, LastPartyId={_config.LastPartyId ?? "none"}.");
+            var activePreset = _config.ActivePreset;
+            Log.Info($"Config loaded. ActivePreset='{activePreset.Name}' (Id={activePreset.Id}). Nickname='{activePreset.Nickname}', Role={activePreset.Role}, HpCalibration={(activePreset.HpCalibration is null ? "none" : "present")}, LastPartyId={_config.LastPartyId ?? "none"}.");
         }
         catch (Exception ex)
         {
@@ -306,7 +307,7 @@ public partial class App : Application, MainWindow.IController
             // wrapper catches everything so a 4xx / network blip / DNS hiccup
             // can't surface as an unobserved task exception in the global
             // handler.
-            _ = NotifyDiscordPartyCreatedAsync(_config.Nickname, partyId);
+            _ = NotifyDiscordPartyCreatedAsync(_config.ActivePreset.Nickname, partyId);
         }
 
         PartyStateChanged?.Invoke();

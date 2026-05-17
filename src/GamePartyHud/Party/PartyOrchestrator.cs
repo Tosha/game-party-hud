@@ -110,7 +110,8 @@ public sealed class PartyOrchestrator : IAsyncDisposable
     public void UpdateConfig(AppConfig cfg)
     {
         _cfg = cfg;
-        Log.Info($"PartyOrchestrator: config updated (nickname='{cfg.Nickname}', role={cfg.Role}, pollMs={cfg.PollIntervalMs}).");
+        var ap = cfg.ActivePreset;
+        Log.Info($"PartyOrchestrator: config updated (preset='{ap.Name}', nickname='{ap.Nickname}', role={ap.Role}, pollMs={cfg.PollIntervalMs}).");
     }
 
     private void OnPeerMessage(string fromPeerId, string text)
@@ -164,9 +165,13 @@ public sealed class PartyOrchestrator : IAsyncDisposable
         {
             try
             {
-                float? hp = await ReadBarAsync(_cfg.HpCalibration, _hpSmoother, ct).ConfigureAwait(false);
-                float? stamina = await ReadBarAsync(_cfg.StaminaCalibration, _staminaSmoother, ct).ConfigureAwait(false);
-                float? mana = await ReadBarAsync(_cfg.ManaCalibration, _manaSmoother, ct).ConfigureAwait(false);
+                // Snapshot the active preset once per tick so a preset switch
+                // landing mid-tick uses the previous values; the next tick
+                // (≤ PollIntervalMs later) picks up the new preset.
+                var ap = _cfg.ActivePreset;
+                float? hp = await ReadBarAsync(ap.HpCalibration, _hpSmoother, ct).ConfigureAwait(false);
+                float? stamina = await ReadBarAsync(ap.StaminaCalibration, _staminaSmoother, ct).ConfigureAwait(false);
+                float? mana = await ReadBarAsync(ap.ManaCalibration, _manaSmoother, ct).ConfigureAwait(false);
 
                 LogTick(hp, stamina, mana);
 
@@ -175,7 +180,7 @@ public sealed class PartyOrchestrator : IAsyncDisposable
                 // Apply our own state locally so our card shows up on our HUD too.
                 // This always runs, even when we suppress the network broadcast —
                 // local applies are free and keep the self card refreshed.
-                _state.Apply(new StateMessage(_net.SelfPeerId, _cfg.Nickname, _cfg.Role, hp, stamina, mana, now), now);
+                _state.Apply(new StateMessage(_net.SelfPeerId, ap.Nickname, ap.Role, hp, stamina, mana, now), now);
 
                 // Decide whether to actually broadcast to peers. Each WebSocket
                 // message costs one relay request inbound here PLUS one per
@@ -187,19 +192,19 @@ public sealed class PartyOrchestrator : IAsyncDisposable
                        !ApproxEqual(hp,      _lastBroadcastHp,      BarChangeThreshold)
                     || !ApproxEqual(stamina, _lastBroadcastStamina, BarChangeThreshold)
                     || !ApproxEqual(mana,    _lastBroadcastMana,    BarChangeThreshold);
-                bool nickChanged = _cfg.Nickname != _lastBroadcastNick;
-                bool roleChanged = _cfg.Role != _lastBroadcastRole;
+                bool nickChanged = ap.Nickname != _lastBroadcastNick;
+                bool roleChanged = ap.Role != _lastBroadcastRole;
                 bool heartbeatDue = (now - _lastBroadcastAtUnix) >= (long)BroadcastHeartbeat.TotalSeconds;
 
                 if (barChanged || nickChanged || roleChanged || heartbeatDue)
                 {
-                    var json = MessageJson.Encode(new StateMessage(_net.SelfPeerId, _cfg.Nickname, _cfg.Role, hp, stamina, mana, now));
+                    var json = MessageJson.Encode(new StateMessage(_net.SelfPeerId, ap.Nickname, ap.Role, hp, stamina, mana, now));
                     await _net.BroadcastAsync(json).ConfigureAwait(false);
                     _lastBroadcastHp = hp;
                     _lastBroadcastStamina = stamina;
                     _lastBroadcastMana = mana;
-                    _lastBroadcastNick = _cfg.Nickname;
-                    _lastBroadcastRole = _cfg.Role;
+                    _lastBroadcastNick = ap.Nickname;
+                    _lastBroadcastRole = ap.Role;
                     _lastBroadcastAtUnix = now;
                 }
             }
