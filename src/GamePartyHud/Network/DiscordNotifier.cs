@@ -32,7 +32,11 @@ public sealed class DiscordNotifier : IDiscordNotifier, IDisposable
 
         var payload = new
         {
-            content = $"{nickname} created a party with id {partyId}",
+            // Discord Markdown: **text** = bold. Nickname + party id are
+            // bolded so they're easy to scan in a busy channel; the
+            // re-use note tells teammates they can rejoin the same id
+            // tomorrow without anyone needing to spin up a new party.
+            content = $"**{nickname}** created a party with id **{partyId}**. The same id can be reused for multiple sessions.",
             // Block @everyone / @here / role-mention abuse if a nickname ever
             // contains one of those tokens. Discord parses mentions by default.
             allowed_mentions = new { parse = Array.Empty<string>() },
