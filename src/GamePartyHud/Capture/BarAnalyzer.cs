@@ -131,6 +131,34 @@ public sealed class BarAnalyzer
         return counts;
     }
 
+    /// <summary>
+    /// For each row, count how many pixels in that row are saturated (i.e.,
+    /// part of a coloured bar fill, by the same <see cref="IsFilledPixel"/>
+    /// test the analyzer uses). Used by the validator to detect captures
+    /// that are taller than the actual bar inside them — a clean bar fills
+    /// most of its captured height; a region with a bar in the top half and
+    /// buff icons / background padding in the bottom half shows a sharp
+    /// drop in row-saturation past the bar's bottom edge.
+    /// </summary>
+    public static int[] CountRowSaturatedPixels(ReadOnlySpan<byte> bgra, int width, int height)
+    {
+        if (width <= 0 || height <= 0) return Array.Empty<int>();
+        if (bgra.Length < width * height * 4) throw new ArgumentException("bgra too small", nameof(bgra));
+        var counts = new int[height];
+        for (int y = 0; y < height; y++)
+        {
+            int satCount = 0;
+            for (int x = 0; x < width; x++)
+            {
+                int idx = (y * width + x) * 4;
+                var hsv = Hsv.FromBgra(bgra[idx], bgra[idx + 1], bgra[idx + 2]);
+                if (IsFilledPixel(hsv)) satCount++;
+            }
+            counts[y] = satCount;
+        }
+        return counts;
+    }
+
     public float Analyze(ReadOnlySpan<byte> bgra, int width, int height, BarCalibration cal)
     {
         if (width <= 0 || height <= 0) return 0f;

@@ -180,6 +180,39 @@ public class BarRegionValidatorTests
     }
 
     [Fact]
+    public void Validate_BarWithIconsBelow_ReturnsWarning()
+    {
+        // Top 12 rows: a real bar (full-width saturation). Bottom 18 rows:
+        // mostly desaturated grey with a couple of small saturated "icon"
+        // blocks (each 20 px wide). Peak row saturation is 200 (the top
+        // bar); icon rows have ~40 saturation, well below the 60 %
+        // threshold. Bar rows span 12 of 30 (40 %) — under the 60 %
+        // MinBarHeightFraction, so rule 8 fires.
+        int w = 200, h = 30;
+        var bgra = new byte[w * h * 4];
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                int i = (y * w + x) * 4;
+                bool inBarRow = y < 12;
+                bool inIconBlock = y >= 18 && y < 26 && (x < 20 || (x >= 80 && x < 100));
+                var c = (inBarRow || inIconBlock) ? RedFill : DarkEmpty;
+                bgra[i + 0] = c.b;
+                bgra[i + 1] = c.g;
+                bgra[i + 2] = c.r;
+                bgra[i + 3] = 255;
+            }
+        }
+        var region = new CaptureRegion(0, 0, w, h);
+
+        var result = BarRegionValidator.Validate(region, bgra, isPickTime: false);
+
+        Assert.Equal(ValidationLevel.Warning, result.Level);
+        Assert.Contains("fills only", result.Message, System.StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void Validate_AllChecksPass_ReturnsOk()
     {
         int w = 200, h = 22;
