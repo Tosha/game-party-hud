@@ -263,6 +263,7 @@
                                        IsEnabled="False"
                                        Margin="8,0,0,0"
                                        Padding="16,0"
+                                       VerticalAlignment="Stretch"
                                        Click="OnJoin"/>
                             <ui:ProgressRing x:Name="JoinProgress"
                                              Width="20" Height="20"

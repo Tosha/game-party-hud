@@ -200,7 +200,22 @@ public partial class MainWindow : FluentWindow
 
     private void OnPartyIdInputChanged(object sender, TextChangedEventArgs e)
     {
-        JoinButton.IsEnabled = (PartyIdInput.Text?.Trim().Length == 6);
+        UpdateJoinButtonState();
+    }
+
+    /// <summary>
+    /// Drives both the enabled state and the visual Appearance of the Join
+    /// button: green (Success) when a complete 6-character party id has been
+    /// entered, plain Secondary otherwise. Called from input changes and
+    /// from the busy-state helper.
+    /// </summary>
+    private void UpdateJoinButtonState(bool busy = false)
+    {
+        bool valid = (PartyIdInput.Text?.Trim().Length == 6);
+        JoinButton.IsEnabled = !busy && valid;
+        JoinButton.Appearance = (!busy && valid)
+            ? ControlAppearance.Success
+            : ControlAppearance.Secondary;
     }
 
     private void OnPartyIdInputKeyDown(object sender, KeyEventArgs e)
@@ -545,7 +560,7 @@ public partial class MainWindow : FluentWindow
     private void SetPartyActionsBusy(bool busy, ProgressRing activeSpinner)
     {
         CreateButton.IsEnabled = !busy;
-        JoinButton.IsEnabled = !busy && (PartyIdInput.Text?.Trim().Length == 6);
+        UpdateJoinButtonState(busy);
         activeSpinner.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
     }
 
