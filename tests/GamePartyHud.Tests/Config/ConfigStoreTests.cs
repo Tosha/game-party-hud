@@ -193,7 +193,7 @@ public class ConfigStoreTests : IDisposable
         Assert.DoesNotContain("bridge-secret", jsonOnDisk);
     }
 
-    [Fact(Skip = "Legacy-format migration lands in Task 6 — see plan §6")]
+    [Fact]
     public void Load_OldShapeHpCalibrationJson_DropsFullColorAndTolerance()
     {
         // A config.json saved by a build before the BarCalibration redesign
@@ -236,7 +236,7 @@ public class ConfigStoreTests : IDisposable
         Assert.DoesNotContain("\"tolerance\"", reborn);
     }
 
-    [Fact(Skip = "Legacy-format migration lands in Task 6 — see plan §6")]
+    [Fact]
     public void Load_OldShapeConfig_MissingStaminaAndManaCalibrations_ParseAsNull()
     {
         // A config.json saved before stamina/mana support contains only
@@ -342,5 +342,146 @@ public class ConfigStoreTests : IDisposable
 """);
         var loaded = new ConfigStore(_tmp).Load();
         Assert.Equal(0.5, loaded.HudScale);
+    }
+
+    [Fact]
+    public void Load_LegacyConfig_MigratesIntoDefaultPreset()
+    {
+        // A pre-presets config.json (top-level Nickname/Role/HpCalibration, no
+        // Presets array) must be silently rebuilt into one preset named
+        // "Default" with id "default". User keeps their existing calibration
+        // and the next Save writes the new shape.
+        File.WriteAllText(_tmp, """
+{
+  "hpCalibration": {
+    "region": { "x": 10, "y": 20, "w": 300, "h": 18 },
+    "direction": "LTR"
+  },
+  "staminaCalibration": null,
+  "manaCalibration": null,
+  "nicknameRegion": null,
+  "nickname": "Yiawahuye",
+  "role": "Tank",
+  "hudPosition": { "x": 100, "y": 100, "monitor": 0 },
+  "hudLocked": true,
+  "lastPartyId": "ABC123",
+  "pollIntervalMs": 2000,
+  "relayUrl": ""
+}
+""");
+
+        var loaded = new ConfigStore(_tmp).Load();
+
+        Assert.Single(loaded.Presets);
+        Assert.Equal(AppConfig.DefaultPresetId, loaded.ActivePresetId);
+        var p = loaded.ActivePreset;
+        Assert.Equal("Default", p.Name);
+        Assert.Equal("Yiawahuye", p.Nickname);
+        Assert.Equal(Role.Tank, p.Role);
+        Assert.NotNull(p.HpCalibration);
+        Assert.Equal(new CaptureRegion(10, 20, 300, 18), p.HpCalibration!.Region);
+        Assert.Equal("ABC123", loaded.LastPartyId); // global field preserved
+    }
+
+    [Fact]
+    public void Load_LegacyConfig_SavesInNewShape()
+    {
+        // After loading legacy JSON, the next Save writes the new format.
+        // The freshly-written file must round-trip back unchanged through
+        // Load (preset id and contents preserved, no top-level Nickname etc).
+        File.WriteAllText(_tmp, """
+{
+  "nickname": "Tracker",
+  "role": "Healer",
+  "hpCalibration": null,
+  "hudPosition": { "x": 50, "y": 50, "monitor": 0 },
+  "hudLocked": true,
+  "lastPartyId": null,
+  "pollIntervalMs": 2000,
+  "relayUrl": ""
+}
+""");
+
+        var store = new ConfigStore(_tmp);
+        var loaded = store.Load();
+        store.Save(loaded);
+
+        var disk = File.ReadAllText(_tmp);
+        Assert.Contains("\"presets\"", disk, StringComparison.OrdinalIgnoreCase);
+        // Top-level Nickname/Role are gone — only present inside a preset.
+        Assert.DoesNotContain("\"nicknameRegion\"", disk, StringComparison.OrdinalIgnoreCase);
+        // The CaptureRegion record no longer has a Monitor property, so the
+        // serialiser doesn't emit one. (The legacy 'monitor' key inside
+        // hudPosition was discarded silently on load.)
+        Assert.DoesNotContain("\"monitor\"", disk, StringComparison.OrdinalIgnoreCase);
+
+        AssertConfigsEqual(loaded, store.Load());
+    }
+
+    [Fact]
+    public void Load_PresetsEmpty_RepairsToDefault()
+    {
+        File.WriteAllText(_tmp, """
+{
+  "presets": [],
+  "activePresetId": "default",
+  "hudPosition": { "x": 0, "y": 0 },
+  "hudLocked": true,
+  "lastPartyId": null,
+  "pollIntervalMs": 700,
+  "relayUrl": ""
+}
+""");
+
+        var loaded = new ConfigStore(_tmp).Load();
+        Assert.Single(loaded.Presets);
+        Assert.Equal(AppConfig.DefaultPresetId, loaded.Presets[0].Id);
+    }
+
+    [Fact]
+    public void Load_ActivePresetIdMismatch_RepairsToFirstPreset()
+    {
+        File.WriteAllText(_tmp, """
+{
+  "presets": [
+    { "id": "real-one", "name": "One", "nickname": "Alice", "role": "Tank",
+      "hpCalibration": null, "staminaCalibration": null, "manaCalibration": null }
+  ],
+  "activePresetId": "ghost-id-not-in-list",
+  "hudPosition": { "x": 0, "y": 0 },
+  "hudLocked": true,
+  "lastPartyId": null,
+  "pollIntervalMs": 700,
+  "relayUrl": ""
+}
+""");
+
+        var loaded = new ConfigStore(_tmp).Load();
+        Assert.Equal("real-one", loaded.ActivePresetId);
+    }
+
+    [Fact]
+    public void Load_DuplicatePresetIds_Regenerates()
+    {
+        File.WriteAllText(_tmp, """
+{
+  "presets": [
+    { "id": "same", "name": "A", "nickname": "Alice", "role": "Tank",
+      "hpCalibration": null, "staminaCalibration": null, "manaCalibration": null },
+    { "id": "same", "name": "B", "nickname": "Bob", "role": "Healer",
+      "hpCalibration": null, "staminaCalibration": null, "manaCalibration": null }
+  ],
+  "activePresetId": "same",
+  "hudPosition": { "x": 0, "y": 0 },
+  "hudLocked": true,
+  "lastPartyId": null,
+  "pollIntervalMs": 700,
+  "relayUrl": ""
+}
+""");
+
+        var loaded = new ConfigStore(_tmp).Load();
+        Assert.Equal(2, loaded.Presets.Count);
+        Assert.NotEqual(loaded.Presets[0].Id, loaded.Presets[1].Id);
     }
 }
