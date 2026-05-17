@@ -386,7 +386,7 @@ public partial class App : Application, MainWindow.IController
         {
             _config = _config with
             {
-                HudPosition = new HudPosition(h.Left, h.Top, 0),
+                HudPosition = new HudPosition(h.Left, h.Top),
                 HudScale = h.Scale,
             };
             try { store.Save(_config); } catch (Exception ex) { Log.Error("Final config save failed.", ex); }

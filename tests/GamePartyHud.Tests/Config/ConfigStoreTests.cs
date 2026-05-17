@@ -51,7 +51,7 @@ public class ConfigStoreTests : IDisposable
             NicknameRegion = new CaptureRegion(10, 0, 300, 20),
             Nickname = "Yiawahuye",
             Role = Role.Tank,
-            HudPosition = new HudPosition(500, 400, 1),
+            HudPosition = new HudPosition(500, 400),
             HudLocked = false,
             LastPartyId = "X7K2P9",
             FullscreenDisclaimerDismissed = true,

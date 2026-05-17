@@ -70,7 +70,7 @@ public sealed record AppConfig(
         NicknameRegion: null,
         Nickname: "Player",
         Role: Role.Utility,
-        HudPosition: new HudPosition(100, 100, 0),
+        HudPosition: new HudPosition(100, 100),
         HudLocked: true,
         LastPartyId: null,
         PollIntervalMs: 700,
@@ -80,4 +80,4 @@ public sealed record AppConfig(
         HudScale: 1.0);
 }
 
-public sealed record HudPosition(double X, double Y, int Monitor);
+public sealed record HudPosition(double X, double Y);
