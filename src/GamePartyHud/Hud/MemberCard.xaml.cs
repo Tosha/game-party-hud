@@ -8,7 +8,6 @@ public partial class MemberCard : UserControl
 {
     private static readonly GridLength Zero = new(0);
     private static readonly GridLength OneStar = new(1, GridUnitType.Star);
-    private static readonly GridLength TwoStar = new(2, GridUnitType.Star);
     private static readonly GridLength ThreeStar = new(3, GridUnitType.Star);
 
     private HudMember? _boundMember;
@@ -54,18 +53,14 @@ public partial class MemberCard : UserControl
     {
         // Spec proportions (HP always dominates the bar):
         //   HP only             → HP 100%
-        //   HP + one other      → HP 75%, other 25%  (3 : 1 star ratio)
-        //   HP + Stamina + Mana → HP 50%, S 25%, M 25%  (2 : 1 : 1 star ratio)
-        // The HP row's star factor swings 1 → 3 → 2 depending on how many other
-        // bars are present, so HP is never less than half the height.
-        int otherCount = (m.HasStamina ? 1 : 0) + (m.HasMana ? 1 : 0);
-        HpRowDef.Height = otherCount switch
-        {
-            2 => TwoStar,
-            1 => ThreeStar,
-            _ => OneStar,
-        };
-        StaminaRowDef.Height = m.HasStamina ? OneStar : Zero;
-        ManaRowDef.Height    = m.HasMana    ? OneStar : Zero;
+        //   HP + one other      → HP 75%, other 25%       (3 : 1)
+        //   HP + Stamina + Mana → HP 60%, S 20%, M 20%    (3 : 1 : 1)
+        // HP gets a 3* factor whenever any other bar is present; the others
+        // each get 1*, so adding the second other bar squeezes both equally
+        // rather than eating into HP.
+        bool anyOther = m.HasStamina || m.HasMana;
+        HpRowDef.Height      = anyOther     ? ThreeStar : OneStar;
+        StaminaRowDef.Height = m.HasStamina ? OneStar   : Zero;
+        ManaRowDef.Height    = m.HasMana    ? OneStar   : Zero;
     }
 }
