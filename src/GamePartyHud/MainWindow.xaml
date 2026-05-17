@@ -3,6 +3,7 @@
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
                  xmlns:local="clr-namespace:GamePartyHud"
+                 xmlns:bars="clr-namespace:GamePartyHud.Bars"
                  Title="Game Party HUD"
                  Icon="pack://application:,,,/app.ico"
                  SizeToContent="WidthAndHeight"
@@ -219,100 +220,32 @@
                     </ComboBox>
                 </Grid>
 
-                <!-- Bars sub-section. Headers carry tooltips in lieu of
-                     inline description paragraphs, to keep the column compact. -->
+                <!-- Bars sub-section. Three uniform cards; each card carries
+                     its own live preview + validation. Toggle on Stamina/Mana
+                     preserves calibration when disabled (toggle off => bar
+                     not broadcast, but the calibration is retained). -->
                 <Separator Margin="0,10,0,0" Opacity="0.3"/>
                 <TextBlock Text="Bars" FontSize="16" FontWeight="SemiBold" Margin="0,8,0,10"
                            ToolTip="Track HP — plus optional stamina and mana — by dragging a tight box around each bar in your game."/>
 
-                <TextBlock Text="HP bar region" FontWeight="SemiBold" Margin="0,0,0,6"
-                           ToolTip="Be in-game with HP full, then drag a tight box around just the red HP bar — no nickname, no other bars, no frame."/>
-                <StackPanel Orientation="Horizontal">
-                    <ui:Button x:Name="PickRegionButton"
-                               Appearance="Primary"
-                               Icon="Target24"
-                               Content="Pick HP bar region"
-                               Tag="Hp"
-                               Click="OnPickRegion"/>
-                    <Border x:Name="RegionStatusChip"
-                            VerticalAlignment="Center" Margin="12,0,0,0"
-                            Padding="10,4"
-                            CornerRadius="10"
-                            Background="#22FFFFFF"
-                            BorderBrush="#33FFFFFF" BorderThickness="1">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock x:Name="RegionStatusIcon"
-                                       Text="○" FontSize="12" FontWeight="Bold"
-                                       VerticalAlignment="Center"/>
-                            <TextBlock x:Name="RegionStatus"
-                                       VerticalAlignment="Center" Margin="6,0,0,0"
-                                       TextWrapping="Wrap" MaxWidth="320"/>
-                        </StackPanel>
-                    </Border>
-                </StackPanel>
-
-                <CheckBox x:Name="IncludeStaminaCheck"
-                          Content="Include stamina"
-                          Margin="0,16,0,4"
-                          Checked="OnIncludeStaminaChecked"
-                          Unchecked="OnIncludeStaminaUnchecked"/>
-                <StackPanel x:Name="StaminaPickRow"
-                            Orientation="Horizontal"
-                            Margin="20,0,0,12"
-                            Visibility="Collapsed">
-                    <ui:Button x:Name="PickStaminaRegionButton"
-                               Appearance="Secondary"
-                               Icon="Target24"
-                               Content="Pick stamina bar region"
-                               Tag="Stamina"
-                               Click="OnPickRegion"/>
-                    <Border x:Name="StaminaStatusChip"
-                            VerticalAlignment="Center" Margin="12,0,0,0"
-                            Padding="10,4"
-                            CornerRadius="10"
-                            Background="#22FFFFFF"
-                            BorderBrush="#33FFFFFF" BorderThickness="1">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock x:Name="StaminaStatusIcon"
-                                       Text="○" FontSize="12" FontWeight="Bold"
-                                       VerticalAlignment="Center"/>
-                            <TextBlock x:Name="StaminaStatus"
-                                       VerticalAlignment="Center" Margin="6,0,0,0"
-                                       TextWrapping="Wrap" MaxWidth="320"/>
-                        </StackPanel>
-                    </Border>
-                </StackPanel>
-
-                <CheckBox x:Name="IncludeManaCheck"
-                          Content="Include mana"
-                          Margin="0,0,0,4"
-                          Checked="OnIncludeManaChecked"
-                          Unchecked="OnIncludeManaUnchecked"/>
-                <StackPanel x:Name="ManaPickRow"
-                            Orientation="Horizontal"
-                            Margin="20,0,0,0"
-                            Visibility="Collapsed">
-                    <ui:Button x:Name="PickManaRegionButton"
-                               Appearance="Secondary"
-                               Icon="Target24"
-                               Content="Pick mana bar region"
-                               Tag="Mana"
-                               Click="OnPickRegion"/>
-                    <Border x:Name="ManaStatusChip"
-                            VerticalAlignment="Center" Margin="12,0,0,0"
-                            Padding="10,4"
-                            CornerRadius="10"
-                            Background="#22FFFFFF"
-                            BorderBrush="#33FFFFFF" BorderThickness="1">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock x:Name="ManaStatusIcon"
-                                       Text="○" FontSize="12" FontWeight="Bold"
-                                       VerticalAlignment="Center"/>
-                            <TextBlock x:Name="ManaStatus"
-                                       VerticalAlignment="Center" Margin="6,0,0,0"
-                                       TextWrapping="Wrap" MaxWidth="320"/>
-                        </StackPanel>
-                    </Border>
+                <StackPanel>
+                    <bars:BarCard x:Name="HpCard"
+                                  BarName="HP"
+                                  IsToggleable="False"
+                                  IsBarEnabled="True"
+                                  Margin="0,0,0,8"
+                                  PickRequested="OnHpPickRequested"/>
+                    <bars:BarCard x:Name="StaminaCard"
+                                  BarName="Stamina"
+                                  IsToggleable="True"
+                                  Margin="0,0,0,8"
+                                  PickRequested="OnStaminaPickRequested"
+                                  EnabledChanged="OnStaminaEnabledChanged"/>
+                    <bars:BarCard x:Name="ManaCard"
+                                  BarName="Mana"
+                                  IsToggleable="True"
+                                  PickRequested="OnManaPickRequested"
+                                  EnabledChanged="OnManaEnabledChanged"/>
                 </StackPanel>
             </StackPanel>
 
