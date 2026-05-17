@@ -42,22 +42,38 @@
                 <ColumnDefinition Width="300"/>   <!-- Right (fixed Party panel, tightened from 320) -->
             </Grid.ColumnDefinitions>
 
-            <!-- LEFT COLUMN: Profile + Bars -->
-            <StackPanel Grid.Column="0" Margin="24,4,12,12">
+            <!-- LEFT COLUMN: Profile + Bars.
+                 Grid.IsSharedSizeScope so the Profile-header grid and the
+                 Nickname/Role grid below it share column widths via
+                 SharedSizeGroup — keeps PresetCombo's right edge flush with
+                 RoleCombo's right edge regardless of where the StackPanel
+                 stretches to. -->
+            <StackPanel Grid.Column="0" Margin="24,4,12,12" Grid.IsSharedSizeScope="True">
                 <!-- Profile sub-section. Heading shares a row with the preset
                      selector; switching a preset swaps Nickname/Role/Bars
                      content via PopulateFromConfig. -->
                 <Grid Margin="0,0,0,10">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto" SharedSizeGroup="ProfileLeftCol"/>
+                        <ColumnDefinition Width="Auto" SharedSizeGroup="ProfileRightCol"/>
                     </Grid.ColumnDefinitions>
                     <TextBlock Grid.Column="0"
                                Text="Profile" FontSize="18" FontWeight="SemiBold"
                                VerticalAlignment="Center"/>
+                    <!-- Styled deliberately understated (transparent bg, no
+                         border, tight padding) so the selector reads as a
+                         secondary affordance, not a primary input. The
+                         dropdown items themselves still get the wpfui combo
+                         look. -->
                     <ComboBox Grid.Column="1"
                               x:Name="PresetCombo"
                               Width="160"
+                              MinHeight="0"
+                              Padding="6,1"
+                              BorderThickness="0"
+                              Background="Transparent"
+                              FontSize="13"
+                              VerticalAlignment="Center"
                               SelectionChanged="OnPresetChanged">
                         <!-- Override the wpfui ComboBoxItem default MinHeight
                              (which produces ~50px-tall rows) so the dropdown
@@ -101,8 +117,8 @@
                      lives in the Nickname label's tooltip. -->
                 <Grid>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto"/>  <!-- Nickname (sized to TextBox) -->
-                        <ColumnDefinition Width="Auto"/>  <!-- Role (sized to ComboBox) -->
+                        <ColumnDefinition Width="Auto" SharedSizeGroup="ProfileLeftCol"/>
+                        <ColumnDefinition Width="Auto" SharedSizeGroup="ProfileRightCol"/>
                     </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
