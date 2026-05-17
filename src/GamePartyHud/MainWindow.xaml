@@ -36,9 +36,9 @@
              stretching out across half the window. -->
         <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="320"/>
+                <ColumnDefinition Width="Auto"/>  <!-- Left content (Auto, not *, so the window auto-sizes flush with the right edge) -->
+                <ColumnDefinition Width="Auto"/>  <!-- Divider -->
+                <ColumnDefinition Width="320"/>   <!-- Right (fixed Party panel) -->
             </Grid.ColumnDefinitions>
 
             <!-- LEFT COLUMN: Profile + Bars -->
@@ -51,8 +51,8 @@
                      lives in the Nickname label's tooltip. -->
                 <Grid>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>  <!-- Nickname (sized to TextBox) -->
+                        <ColumnDefinition Width="Auto"/>  <!-- Role (sized to ComboBox) -->
                     </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -64,7 +64,7 @@
                                ToolTip="What your teammates see on the HUD."/>
                     <ui:TextBox Grid.Row="1" Grid.Column="0"
                                 x:Name="NickText" MaxLength="32"
-                                Margin="0,0,16,0"
+                                Width="220" Margin="0,0,16,0"
                                 PlaceholderText="Your character name"
                                 TextChanged="OnNicknameChanged"/>
 
@@ -190,10 +190,14 @@
                     Background="#22FFFFFF"
                     Margin="0,8"/>
 
-            <!-- RIGHT COLUMN: Party + Status InfoBar (pinned bottom) -->
+            <!-- RIGHT COLUMN: Party + Status InfoBar. Rows are Auto so the
+                 column sizes to its content; PartyStatus sits just below
+                 the Party UI when shown (no longer pinned to the
+                 column bottom, since the column no longer has slack
+                 height under SizeToContent). -->
             <Grid Grid.Column="2" Margin="12,12,24,12">
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
