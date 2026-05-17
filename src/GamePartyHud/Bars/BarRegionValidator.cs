@@ -13,13 +13,15 @@ namespace GamePartyHud.Bars;
 /// small region — say 40x22 — is both narrow by absolute width AND tall
 /// by aspect ratio; "narrow" is the more actionable diagnosis when both
 /// trigger.)
-///   1. Empty region              → Error
-///   2. No saturated columns      → Error
-///   3. Region too narrow         → Warning
-///   4. Region too tall           → Warning
-///   5. Low fill at pick time     → Warning  (isPickTime only)
-///   6. Fragmented fill           → Warning
-///   7. All checks pass           → Ok
+///   1. Empty region                  → Error
+///   2. No saturated columns          → Error
+///   3. Region too narrow             → Warning
+///   4. Region too tall               → Warning
+///   5. Low fill at pick time         → Warning  (isPickTime only)
+///   6. Fragmented fill (horizontal)  → Warning
+///   7. Vertically stacked bars       → Warning
+///   8. Bar fills only part of region → Warning
+///   9. All checks pass               → Ok
 /// </summary>
 public static class BarRegionValidator
 {
@@ -30,6 +32,25 @@ public static class BarRegionValidator
     public const int MaxReasonableHeight = 30;
     public const int MinReasonableWidth = 60;
     public const float MinFillAtPickTime = 0.85f;
+
+    // Threshold for the vertical-fragmentation rule: if at least this
+    // fraction of columns have >=2 distinct saturated runs, the region
+    // is treated as multiple stacked bars (or a strong horizontal
+    // discontinuity). 0.60 catches the user's "two stacked bars" case
+    // (~100% of columns have 2 runs) without false-positives on text
+    // overlays or single-bar gradients (<20% of columns).
+    public const double MultiBarColumnFraction = 0.60;
+
+    // Thresholds for the bar-fills-only-part-of-region rule. A row counts
+    // as a "bar row" if its saturated-pixel count is >= the busiest row's
+    // saturation times BarRowSaturationRatio (so a text-overlay row at
+    // ~80 % of the peak still counts; an empty / background row at <40 %
+    // doesn't). The longest contiguous run of bar rows must be at least
+    // MinBarHeightFraction of the captured region's height — anything
+    // shorter means the captured box is taller than the actual bar
+    // inside it (bar plus buff icons / frame / second bar / etc).
+    public const double BarRowSaturationRatio = 0.60;
+    public const double MinBarHeightFraction = 0.60;
 
     public static ValidationResult Validate(
         CaptureRegion region,
@@ -123,7 +144,62 @@ public static class BarRegionValidator
                 "The captured pixels don't look like one continuous bar. Did the box catch part of an adjacent bar or icon?");
         }
 
-        // Rule 7: all clear.
+        // Rule 7: vertically stacked bars / strong horizontal break.
+        // For each column count distinct saturated runs (each at least
+        // height/10 tall, with a floor of 2 px so 1-2 px noise doesn't
+        // count). A clean bar has exactly 1 run per column; two stacked
+        // bars produce 2 runs in every column. Text overlays produce
+        // 2 runs only in the few columns under text characters, so the
+        // 60 %-of-columns threshold doesn't fire there.
+        int minRunPx = Math.Max(2, region.H / 10);
+        int[] runCounts = BarAnalyzer.CountColumnSaturatedRuns(bgra, region.W, region.H, cal, minRunPx);
+        int multiRunColumns = 0;
+        for (int i = 0; i < runCounts.Length; i++)
+        {
+            if (runCounts[i] >= 2) multiRunColumns++;
+        }
+        if ((double)multiRunColumns / region.W >= MultiBarColumnFraction)
+        {
+            return new ValidationResult(
+                ValidationLevel.Warning,
+                "Region looks like multiple bars stacked vertically or has a strong horizontal break. Try picking just one bar.");
+        }
+
+        // Rule 8: bar occupies only part of the captured height. Counts
+        // per-row saturated pixels; finds the longest contiguous run of
+        // rows whose saturation is comparable to the busiest row's. If
+        // that run is much shorter than the captured height, the box
+        // includes non-bar pixels above/below the actual bar (buff
+        // icons, frame, status text, etc.).
+        var rowSat = BarAnalyzer.CountRowSaturatedPixels(bgra, region.W, region.H);
+        int peakRowSat = 0;
+        for (int y = 0; y < rowSat.Length; y++)
+            if (rowSat[y] > peakRowSat) peakRowSat = rowSat[y];
+        if (peakRowSat > 0)
+        {
+            int barRowThreshold = (int)Math.Round(peakRowSat * BarRowSaturationRatio);
+            int longestBarRowRun = 0, currentRun = 0;
+            for (int y = 0; y < rowSat.Length; y++)
+            {
+                if (rowSat[y] >= barRowThreshold)
+                {
+                    currentRun++;
+                    if (currentRun > longestBarRowRun) longestBarRowRun = currentRun;
+                }
+                else
+                {
+                    currentRun = 0;
+                }
+            }
+            if ((double)longestBarRowRun / region.H < MinBarHeightFraction)
+            {
+                return new ValidationResult(
+                    ValidationLevel.Warning,
+                    $"The bar fills only {(int)Math.Round((double)longestBarRowRun / region.H * 100)}% of the captured region's height. Try a tighter box around just the bar — exclude buff icons, frame, or any second bar.");
+            }
+        }
+
+        // Rule 9: all clear.
         int okPct = (int)Math.Round(fillFraction * 100f);
         return new ValidationResult(
             ValidationLevel.Ok,

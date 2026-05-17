@@ -120,6 +120,99 @@ public class BarRegionValidatorTests
     }
 
     [Fact]
+    public void Validate_VerticallyStackedBars_ReturnsWarning()
+    {
+        // Two saturated stripes (rows 0-9 and rows 14-23) separated by a
+        // 4-row empty middle band. Every column has 2 distinct saturated
+        // runs separated by the gap — characteristic of a user grabbing
+        // two stacked HUD bars or a bar plus a glow/outline above it.
+        int w = 200, h = 24;
+        var bgra = new byte[w * h * 4];
+        for (int y = 0; y < h; y++)
+        {
+            bool saturated = y < 10 || y >= 14;
+            var c = saturated ? RedFill : DarkEmpty;
+            for (int x = 0; x < w; x++)
+            {
+                int i = (y * w + x) * 4;
+                bgra[i + 0] = c.b;
+                bgra[i + 1] = c.g;
+                bgra[i + 2] = c.r;
+                bgra[i + 3] = 255;
+            }
+        }
+        var region = new CaptureRegion(0, 0, w, h);
+
+        var result = BarRegionValidator.Validate(region, bgra, isPickTime: false);
+
+        Assert.Equal(ValidationLevel.Warning, result.Level);
+        Assert.Contains("stacked", result.Message, System.StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Validate_SingleBarWithSparseTextOverlay_DoesNotFireMultiBarWarning()
+    {
+        // A clean single bar with a thin desaturated text overlay across
+        // ~20 columns out of 200. Most columns still have 1 run; only the
+        // text columns have 2 runs. Should pass — the multi-bar threshold
+        // (60 % of columns) is well above the ~10 % text-overlay fraction.
+        int w = 200, h = 22;
+        var bgra = new byte[w * h * 4];
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                int i = (y * w + x) * 4;
+                bool textOverlayRow = (y >= 9 && y < 13);
+                bool textOverlayCol = (x >= 90 && x < 110); // ~20 px text strip
+                var c = (textOverlayRow && textOverlayCol) ? DarkEmpty : RedFill;
+                bgra[i + 0] = c.b;
+                bgra[i + 1] = c.g;
+                bgra[i + 2] = c.r;
+                bgra[i + 3] = 255;
+            }
+        }
+        var region = new CaptureRegion(0, 0, w, h);
+
+        var result = BarRegionValidator.Validate(region, bgra, isPickTime: false);
+
+        Assert.Equal(ValidationLevel.Ok, result.Level);
+    }
+
+    [Fact]
+    public void Validate_BarWithIconsBelow_ReturnsWarning()
+    {
+        // Top 12 rows: a real bar (full-width saturation). Bottom 18 rows:
+        // mostly desaturated grey with a couple of small saturated "icon"
+        // blocks (each 20 px wide). Peak row saturation is 200 (the top
+        // bar); icon rows have ~40 saturation, well below the 60 %
+        // threshold. Bar rows span 12 of 30 (40 %) — under the 60 %
+        // MinBarHeightFraction, so rule 8 fires.
+        int w = 200, h = 30;
+        var bgra = new byte[w * h * 4];
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                int i = (y * w + x) * 4;
+                bool inBarRow = y < 12;
+                bool inIconBlock = y >= 18 && y < 26 && (x < 20 || (x >= 80 && x < 100));
+                var c = (inBarRow || inIconBlock) ? RedFill : DarkEmpty;
+                bgra[i + 0] = c.b;
+                bgra[i + 1] = c.g;
+                bgra[i + 2] = c.r;
+                bgra[i + 3] = 255;
+            }
+        }
+        var region = new CaptureRegion(0, 0, w, h);
+
+        var result = BarRegionValidator.Validate(region, bgra, isPickTime: false);
+
+        Assert.Equal(ValidationLevel.Warning, result.Level);
+        Assert.Contains("fills only", result.Message, System.StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void Validate_AllChecksPass_ReturnsOk()
     {
         int w = 200, h = 22;

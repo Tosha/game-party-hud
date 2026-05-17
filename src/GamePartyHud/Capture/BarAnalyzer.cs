@@ -88,6 +88,77 @@ public sealed class BarAnalyzer
         return colFilled;
     }
 
+    /// <summary>
+    /// For each column, count the number of distinct contiguous runs of
+    /// saturated pixels, where each run is at least
+    /// <paramref name="minRunPx"/> rows tall. Used by the validator to
+    /// detect vertically-stacked bars or strong horizontal breaks within
+    /// a captured region — a clean bar has exactly one run per column, a
+    /// region containing two stacked bars has two.
+    /// </summary>
+    public static int[] CountColumnSaturatedRuns(ReadOnlySpan<byte> bgra, int width, int height, BarCalibration cal, int minRunPx)
+    {
+        if (width <= 0 || height <= 0) return Array.Empty<int>();
+        if (bgra.Length < width * height * 4) throw new ArgumentException("bgra too small", nameof(bgra));
+        if (minRunPx < 1) minRunPx = 1;
+
+        bool ltr = cal.Direction == FillDirection.LTR;
+        var counts = new int[width];
+
+        for (int i = 0; i < width; i++)
+        {
+            int col = ltr ? i : (width - 1 - i);
+            int currentRun = 0;
+            int runCount = 0;
+            for (int y = 0; y < height; y++)
+            {
+                int idx = (y * width + col) * 4;
+                var hsv = Hsv.FromBgra(bgra[idx], bgra[idx + 1], bgra[idx + 2]);
+                if (IsFilledPixel(hsv))
+                {
+                    currentRun++;
+                }
+                else
+                {
+                    if (currentRun >= minRunPx) runCount++;
+                    currentRun = 0;
+                }
+            }
+            // Close the final run if it ends at the bottom of the column.
+            if (currentRun >= minRunPx) runCount++;
+            counts[i] = runCount;
+        }
+        return counts;
+    }
+
+    /// <summary>
+    /// For each row, count how many pixels in that row are saturated (i.e.,
+    /// part of a coloured bar fill, by the same <see cref="IsFilledPixel"/>
+    /// test the analyzer uses). Used by the validator to detect captures
+    /// that are taller than the actual bar inside them — a clean bar fills
+    /// most of its captured height; a region with a bar in the top half and
+    /// buff icons / background padding in the bottom half shows a sharp
+    /// drop in row-saturation past the bar's bottom edge.
+    /// </summary>
+    public static int[] CountRowSaturatedPixels(ReadOnlySpan<byte> bgra, int width, int height)
+    {
+        if (width <= 0 || height <= 0) return Array.Empty<int>();
+        if (bgra.Length < width * height * 4) throw new ArgumentException("bgra too small", nameof(bgra));
+        var counts = new int[height];
+        for (int y = 0; y < height; y++)
+        {
+            int satCount = 0;
+            for (int x = 0; x < width; x++)
+            {
+                int idx = (y * width + x) * 4;
+                var hsv = Hsv.FromBgra(bgra[idx], bgra[idx + 1], bgra[idx + 2]);
+                if (IsFilledPixel(hsv)) satCount++;
+            }
+            counts[y] = satCount;
+        }
+        return counts;
+    }
+
     public float Analyze(ReadOnlySpan<byte> bgra, int width, int height, BarCalibration cal)
     {
         if (width <= 0 || height <= 0) return 0f;
