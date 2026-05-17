@@ -550,10 +550,11 @@ public partial class MainWindow : FluentWindow
         Hide();
     }
 
-    private void OnResetHud(object sender, RoutedEventArgs e)
+    private void OnOpenSettings(object sender, RoutedEventArgs e)
     {
-        _ctl.ResetHudLayout();
-        Log.Info("MainWindow: Reset HUD layout clicked.");
+        var dlg = new SettingsWindow(_ctl) { Owner = this };
+        dlg.ShowDialog();
+        Log.Info("MainWindow: Settings dialog closed.");
     }
 
     private async void OnQuitApp(object sender, RoutedEventArgs e)
