@@ -31,15 +31,13 @@
                                  Unchecked="OnEnableToggleChanged"/>
             </Grid>
 
-            <!-- Content: preview thumbnail (left, 70% of flex) + 30% gap +
-                 status icon + pick button (right).
-                 The 7*/3* split deliberately leaves whitespace between the
-                 preview and the status icon so the bar doesn't read as
-                 stretched-too-wide in the card. -->
+            <!-- Content: preview thumbnail (flex) + status icon + pick button
+                 (right). Card width is constrained by the parent in
+                 MainWindow.xaml; preview stretches uniformly because every
+                 card has the exact same outer width. -->
             <Grid Grid.Row="1">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="7*"/>
-                    <ColumnDefinition Width="3*"/>
+                    <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
@@ -65,8 +63,8 @@
                     </Grid>
                 </Border>
 
-                <!-- Status + button (column 2; column 1 is the deliberate gap) -->
-                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                <!-- Status + button -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                     <Ellipse x:Name="StatusIcon"
                              Width="12" Height="12"
                              Margin="0,0,10,0"

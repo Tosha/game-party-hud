@@ -228,7 +228,16 @@
                 <TextBlock Text="Bars" FontSize="16" FontWeight="SemiBold" Margin="0,8,0,10"
                            ToolTip="Track HP — plus optional stamina and mana — by dragging a tight box around each bar in your game."/>
 
-                <StackPanel>
+                <!-- HorizontalAlignment=Left + fixed Width pins the Bars cards
+                     to the same width as the Profile grid above (Nickname
+                     TextBox 220 + 16 margin + Role combo 160 = ~396px,
+                     rounded up). Without this, cards stretch to whatever
+                     the left column happens to be, which (a) makes the
+                     section visually unbalanced vs Profile and (b) lets
+                     small per-card width drift sneak in for the bar
+                     previews. Fixed Width => all three previews are
+                     guaranteed identical width. -->
+                <StackPanel HorizontalAlignment="Left" Width="396">
                     <bars:BarCard x:Name="HpCard"
                                   BarName="HP"
                                   IsToggleable="False"
