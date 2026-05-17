@@ -262,7 +262,7 @@ public partial class MainWindow : FluentWindow
 
             var newConfig = bar switch
             {
-                BarType.Hp      => _ctl.Config with { HpCalibration      = cal, NicknameRegion = null },
+                BarType.Hp      => _ctl.Config with { HpCalibration      = cal },
                 BarType.Stamina => _ctl.Config with { StaminaCalibration = cal },
                 BarType.Mana    => _ctl.Config with { ManaCalibration    = cal },
                 _ => _ctl.Config

@@ -48,7 +48,6 @@ public class ConfigStoreTests : IDisposable
             ManaCalibration = new BarCalibration(
                 new CaptureRegion(10, 60, 300, 18),
                 FillDirection.LTR),
-            NicknameRegion = new CaptureRegion(10, 0, 300, 20),
             Nickname = "Yiawahuye",
             Role = Role.Tank,
             HudPosition = new HudPosition(500, 400),
