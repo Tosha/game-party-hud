@@ -12,13 +12,8 @@
             Padding="6,4"
             CornerRadius="3"
             BorderBrush="#66E12A2A"
-            BorderThickness="0">
-        <Border.Background>
-            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                <GradientStop Color="#661B1B1E" Offset="0"/>
-                <GradientStop Color="#66121215" Offset="1"/>
-            </LinearGradientBrush>
-        </Border.Background>
+            BorderThickness="0"
+            Background="{Binding HudTheme.PanelBackgroundBrush}">
         <Border.LayoutTransform>
             <ScaleTransform
                 ScaleX="{Binding Scale, RelativeSource={RelativeSource AncestorType=Window}}"
