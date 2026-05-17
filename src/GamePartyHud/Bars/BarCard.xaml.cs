@@ -28,7 +28,14 @@ public partial class BarCard : UserControl
     private BarCalibration? _calibration;
     private bool _isBarEnabled = true;
     private bool _isWindowVisible = true;
-    private ValidationResult? _pickTimeOverride;
+    // True once the status icon reflects a "deliberate" validation result
+    // (either pick-time via SetPickTimeValidation, or the first live tick
+    // after a fresh Calibration is assigned). While false, the next live
+    // tick is allowed to set the status. Once true, live ticks update the
+    // preview image only — never the status — so the icon reflects the
+    // user's last conscious action (pick / load), not arbitrary live
+    // variance from a moved game window.
+    private bool _statusApplied;
     private bool _suppressToggleEvent;
 
     public BarCard() => InitializeComponent();
@@ -54,7 +61,8 @@ public partial class BarCard : UserControl
     /// <summary>
     /// Current bar calibration. Setting this triggers preview lifecycle
     /// updates (Start if non-null + enabled + window visible; Stop otherwise).
-    /// Clears the pick-time override so the next live result wins.
+    /// Resets the status-applied flag so the next live tick performs a
+    /// one-time validation against the new region.
     /// </summary>
     public BarCalibration? Calibration
     {
@@ -62,7 +70,7 @@ public partial class BarCard : UserControl
         set
         {
             _calibration = value;
-            _pickTimeOverride = null;
+            _statusApplied = value is null;   // null calibration => nothing to validate against
             UpdateButtonAppearance();
             UpdatePlaceholderVisibility();
             UpdatePreviewLifecycle();
@@ -72,13 +80,19 @@ public partial class BarCard : UserControl
     /// <summary>
     /// Two-way mirror of the ToggleSwitch's IsChecked. Setting this updates
     /// the switch without firing EnabledChanged (programmatic vs user-driven).
+    ///
+    /// No early-exit on "same value" because the backing field defaults to
+    /// true and the XAML ToggleSwitch defaults to unchecked; PopulateFromConfig
+    /// setting IsBarEnabled=true on the default-enabled bar would otherwise
+    /// skip syncing IsChecked and the user would see the toggle visually OFF
+    /// even though the bar is enabled in config. Always syncing keeps the
+    /// switch in lockstep with the backing field.
     /// </summary>
     public bool IsBarEnabled
     {
         get => _isBarEnabled;
         set
         {
-            if (_isBarEnabled == value) return;
             _isBarEnabled = value;
             // Update the switch silently — the Checked/Unchecked handler guards
             // on _suppressToggleEvent to avoid re-raising.
@@ -114,15 +128,14 @@ public partial class BarCard : UserControl
     }
 
     /// <summary>
-    /// Apply a pick-time validation result (typically from a low-fill
-    /// warning). The card uses this as the displayed result until either
-    /// (a) Calibration is reassigned (re-pick clears the override) or (b)
-    /// the caller calls this with a new result.
+    /// Apply a pick-time validation result. Becomes the displayed status
+    /// until the next Calibration reassignment (re-pick or preset switch).
+    /// Live preview ticks never overwrite this.
     /// </summary>
-    public void SetPickTimeValidation(ValidationResult? result)
+    public void SetPickTimeValidation(ValidationResult result)
     {
-        _pickTimeOverride = result;
-        if (result is not null) ApplyValidation(result);
+        ApplyValidation(result);
+        _statusApplied = true;
     }
 
     private void OnEnableToggleChanged(object sender, RoutedEventArgs e)
@@ -221,10 +234,16 @@ public partial class BarCard : UserControl
             PreviewPlaceholder.Visibility = Visibility.Collapsed;
         }
 
-        // A cached pick-time warning wins over the live result; the cached
-        // result is cleared whenever Calibration is reassigned (i.e. re-pick).
-        var displayed = _pickTimeOverride ?? result;
-        ApplyValidation(displayed);
+        // Validation only runs once per Calibration: the very first live tick
+        // after a Calibration assignment seeds the status icon, then we lock
+        // it in. Subsequent live ticks update the image only. The user's last
+        // conscious action (pick / load) is what the icon reflects — random
+        // variance from a moved game window doesn't flicker the status.
+        if (!_statusApplied)
+        {
+            ApplyValidation(result);
+            _statusApplied = true;
+        }
     }
 
     private void ApplyValidation(ValidationResult result)
