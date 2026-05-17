@@ -33,6 +33,10 @@ public partial class MainWindow : FluentWindow
     {
         AppConfig Config { get; }
 
+        /// <summary>The live HUD theme view-model — Brush properties the
+        /// HudWindow and MemberCard bind into. Updated by UpdateConfig.</summary>
+        Hud.HudTheme HudTheme { get; }
+
         /// <summary>Current party id if we're in one; null otherwise.</summary>
         string? CurrentPartyId { get; }
 
@@ -44,9 +48,11 @@ public partial class MainWindow : FluentWindow
 
         void UpdateConfig(AppConfig cfg);
 
-        /// <summary>Restores the HUD to its baseline position (100, 100) and scale 1.0.
-        /// Called from the Reset button in the MainWindow's "HUD layout" section.</summary>
-        void ResetHudLayout();
+        /// <summary>Restores the HUD to baseline: position (100, 100), scale 1.0,
+        /// locked, plus the four theme fields (HP / Stamina / Mana colors and
+        /// HudBackgroundOpacity) back to their defaults. Triggered by the
+        /// SettingsWindow's "Reset to defaults" button.</summary>
+        void ResetHudToDefaults();
 
         Task CreatePartyAsync();
         Task JoinPartyAsync(string partyId);

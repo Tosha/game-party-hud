@@ -21,8 +21,8 @@ public partial class SettingsWindow : FluentWindow
 
     private void OnResetHud(object sender, RoutedEventArgs e)
     {
-        _ctl.ResetHudLayout();
-        Log.Info("SettingsWindow: Reset HUD layout clicked.");
+        _ctl.ResetHudToDefaults();
+        Log.Info("SettingsWindow: Reset to defaults clicked.");
         Close();
     }
 }
