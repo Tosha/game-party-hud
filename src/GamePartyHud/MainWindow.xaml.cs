@@ -74,12 +74,46 @@ public partial class MainWindow : FluentWindow
             .Select(r => new RoleOption(r, RoleGlyph.For(r), RoleDisplay.For(r)))
             .ToArray();
 
+    /// <summary>
+    /// One row in the PresetCombo dropdown. Wraps a Preset id + display name with
+    /// edit-mode state for inline rename (Task 9), and a flag distinguishing the
+    /// "+ New preset" command row from real preset rows (Task 8). Public so the
+    /// PresetItemTemplateSelector can reflect on it.
+    /// </summary>
+    public sealed class PresetItemViewModel : System.ComponentModel.INotifyPropertyChanged
+    {
+        private string _name = "";
+        private bool _isEditing;
+
+        public string Id { get; init; } = "";
+        public bool IsCommandRow { get; init; }
+
+        public string Name
+        {
+            get => _name;
+            set { if (_name != value) { _name = value; OnPropertyChanged(nameof(Name)); } }
+        }
+
+        public bool IsEditing
+        {
+            get => _isEditing;
+            set { if (_isEditing != value) { _isEditing = value; OnPropertyChanged(nameof(IsEditing)); } }
+        }
+
+        public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+        private void OnPropertyChanged(string name) =>
+            PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(name));
+    }
+
+    private readonly System.Collections.ObjectModel.ObservableCollection<PresetItemViewModel> _presetItems = new();
+
     public MainWindow(IController controller)
     {
         InitializeComponent();
         _ctl = controller;
 
         RoleCombo.ItemsSource = RoleOptions;
+        PresetCombo.ItemsSource = _presetItems;
 
         // Wpf.Ui's InfoBar doesn't expose a public Closed routed event; the
         // built-in close button just flips IsOpen to false. We watch the
@@ -107,6 +141,10 @@ public partial class MainWindow : FluentWindow
         try
         {
             var cfg = _ctl.Config;
+            RebuildPresetItems();
+            PresetCombo.SelectedItem = _presetItems.FirstOrDefault(i => i.Id == cfg.ActivePresetId);
+            var ap = cfg.ActivePreset;
+            var defaultPreset = AppConfig.Defaults.ActivePreset;
             FullscreenDisclaimer.IsOpen = !cfg.FullscreenDisclaimerDismissed;
             // Collapse the whole control (not just its inner content) when
             // dismissed, otherwise wpfui's InfoBar keeps its layout slot
@@ -115,15 +153,15 @@ public partial class MainWindow : FluentWindow
             FullscreenDisclaimer.Visibility = cfg.FullscreenDisclaimerDismissed
                 ? Visibility.Collapsed
                 : Visibility.Visible;
-            NickText.Text = cfg.Nickname == AppConfig.Defaults.Nickname ? "" : cfg.Nickname;
-            RoleCombo.SelectedItem = RoleOptions.FirstOrDefault(o => o.Role == cfg.Role) ?? RoleOptions[0];
+            NickText.Text = ap.Nickname == defaultPreset.Nickname ? "" : ap.Nickname;
+            RoleCombo.SelectedItem = RoleOptions.FirstOrDefault(o => o.Role == ap.Role) ?? RoleOptions[0];
             // Prepopulate the join input with the last party id the user
             // joined or created. The TextChanged handler will pick this up
             // and flip the Join button to green if it's a complete id,
             // so a returning user can rejoin with a single click.
             PartyIdInput.Text = cfg.LastPartyId ?? "";
 
-            if (cfg.HpCalibration is { } cal)
+            if (ap.HpCalibration is { } cal)
             {
                 SetRegionStatus(BarType.Hp, RegionStatusState.Ok,
                     $"Saved {cal.Region.W}\u00D7{cal.Region.H} at ({cal.Region.X}, {cal.Region.Y}).");
@@ -133,7 +171,7 @@ public partial class MainWindow : FluentWindow
                 SetRegionStatus(BarType.Hp, RegionStatusState.NotSet, "Not set yet.");
             }
 
-            if (cfg.StaminaCalibration is { } sCal)
+            if (ap.StaminaCalibration is { } sCal)
             {
                 IncludeStaminaCheck.IsChecked = true;
                 StaminaPickRow.Visibility = Visibility.Visible;
@@ -147,7 +185,7 @@ public partial class MainWindow : FluentWindow
                 SetRegionStatus(BarType.Stamina, RegionStatusState.NotSet, "Not set yet.");
             }
 
-            if (cfg.ManaCalibration is { } mCal)
+            if (ap.ManaCalibration is { } mCal)
             {
                 IncludeManaCheck.IsChecked = true;
                 ManaPickRow.Visibility = Visibility.Visible;
@@ -168,6 +206,254 @@ public partial class MainWindow : FluentWindow
     {
         // PartyStateChanged may fire off the UI thread.
         Dispatcher.Invoke(RefreshPartyState);
+    }
+
+    /// <summary>
+    /// Rebuilds the PresetCombo dropdown items from the current AppConfig.Presets list.
+    /// Called from PopulateFromConfig (initial load + after every config-change refresh).
+    /// The selected item is set by the caller; the _populating guard prevents the
+    /// SelectionChanged handler from treating that programmatic selection as a user action.
+    /// </summary>
+    private void RebuildPresetItems()
+    {
+        var cfg = _ctl.Config;
+        _presetItems.Clear();
+        foreach (var p in cfg.Presets)
+        {
+            _presetItems.Add(new PresetItemViewModel { Id = p.Id, Name = p.Name });
+        }
+        _presetItems.Add(new PresetItemViewModel { Id = "", Name = "+ New preset", IsCommandRow = true });
+    }
+
+    private void OnPresetChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_populating) return;
+        if (PresetCombo.SelectedItem is not PresetItemViewModel item) return;
+        if (item.IsCommandRow)
+        {
+            OnCreatePreset();
+            return;
+        }
+
+        // No-op if the user clicked the already-active row.
+        if (item.Id == _ctl.Config.ActivePresetId) return;
+
+        _ctl.UpdateConfig(_ctl.Config with { ActivePresetId = item.Id });
+        PopulateFromConfig();             // refreshes Nickname / Role / Bars
+        UpdateJoinButtonState();          // HP-calibration of new preset may flip JoinButton state
+        Log.Info($"MainWindow: active preset changed to '{item.Name}' (Id={item.Id}).");
+    }
+
+    /// <summary>
+    /// Creates a new empty preset (placeholder name "New preset"/"New preset N"),
+    /// activates it, refreshes the UI, and reverts PresetCombo's selection from
+    /// the "+ New preset" command row to the newly-created real row. The user
+    /// can then fill in nickname / role / bar regions exactly as on a fresh install.
+    /// </summary>
+    private void OnCreatePreset()
+    {
+        var cfg = _ctl.Config;
+        var newId = Guid.NewGuid().ToString();
+        var newName = NextAvailablePresetName(cfg);
+
+        var newPreset = new Preset(
+            Id: newId,
+            Name: newName,
+            Nickname: "",
+            Role: Role.Utility,
+            HpCalibration: null,
+            StaminaCalibration: null,
+            ManaCalibration: null);
+
+        var updated = cfg with
+        {
+            Presets = cfg.Presets.Append(newPreset).ToList(),
+            ActivePresetId = newId,
+        };
+        _ctl.UpdateConfig(updated);
+
+        PopulateFromConfig();             // refreshes everything against the new preset
+        UpdateJoinButtonState();          // empty calibration -> Join stays disabled
+
+        // PopulateFromConfig set SelectedItem; the dropdown now reads as the new
+        // preset row. The command row is no longer selected.
+        Log.Info($"MainWindow: created new preset '{newName}' (Id={newId}).");
+    }
+
+    private static string NextAvailablePresetName(AppConfig cfg)
+    {
+        const string baseName = "New preset";
+        var existing = cfg.Presets.Select(p => p.Name).ToHashSet();
+        if (!existing.Contains(baseName)) return baseName;
+        for (int n = 2; n < 100; n++)
+        {
+            var candidate = $"{baseName} {n}";
+            if (!existing.Contains(candidate)) return candidate;
+        }
+        return $"{baseName} {DateTime.UtcNow.Ticks}"; // pathological fallback
+    }
+
+    /// <summary>
+    /// Pencil icon click → enter inline rename mode for the clicked row.
+    /// Keeps the dropdown open so the TextBox stays visible while the user types.
+    /// </summary>
+    private void OnPresetRenameClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement fe || fe.Tag is not string id) return;
+        var item = _presetItems.FirstOrDefault(i => i.Id == id);
+        if (item is null) return;
+
+        foreach (var other in _presetItems) other.IsEditing = false; // only one row in edit at a time
+        item.IsEditing = true;
+        PresetCombo.IsDropDownOpen = true;
+
+        // Defer focus until after the visual swap completes so the new TextBox exists.
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            var textBox = FindTextBoxForPreset(id);
+            if (textBox is not null)
+            {
+                textBox.Focus();
+                textBox.SelectAll();
+            }
+        }), System.Windows.Threading.DispatcherPriority.Input);
+    }
+
+    private System.Windows.Controls.TextBox? FindTextBoxForPreset(string id)
+    {
+        // Walk the dropdown's visual tree to find the TextBox whose Tag matches id.
+        // Uses System.Windows.Controls.TextBox (the bare <TextBox> in XAML) rather
+        // than wpfui's Wpf.Ui.Controls.TextBox.
+        foreach (var obj in _presetItems)
+        {
+            var container = PresetCombo.ItemContainerGenerator.ContainerFromItem(obj) as ComboBoxItem;
+            if (container is null) continue;
+            var tb = FindChild<System.Windows.Controls.TextBox>(container, t => (t.Tag as string) == id);
+            if (tb is not null) return tb;
+        }
+        return null;
+    }
+
+    private static T? FindChild<T>(DependencyObject parent, Func<T, bool> match) where T : DependencyObject
+    {
+        for (int i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(parent); i++)
+        {
+            var child = System.Windows.Media.VisualTreeHelper.GetChild(parent, i);
+            if (child is T t && match(t)) return t;
+            var grand = FindChild<T>(child, match);
+            if (grand is not null) return grand;
+        }
+        return null;
+    }
+
+    private void OnPresetRenameKeyDown(object sender, KeyEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.TextBox tb || tb.Tag is not string id) return;
+        if (e.Key == Key.Enter)
+        {
+            e.Handled = true;
+            CommitOrRevertRename(id, tb, commit: true);
+        }
+        else if (e.Key == Key.Escape)
+        {
+            e.Handled = true;
+            CommitOrRevertRename(id, tb, commit: false);
+        }
+    }
+
+    private void OnPresetRenameLostFocus(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.TextBox tb || tb.Tag is not string id) return;
+        CommitOrRevertRename(id, tb, commit: true);
+    }
+
+    /// <summary>
+    /// ✕ icon click → confirm and delete the preset. If only one preset remains
+    /// the delete is refused (we always need at least one). If the deleted preset
+    /// is the currently-active one, switch to the first remaining preset.
+    /// </summary>
+    private void OnPresetDeleteClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement fe || fe.Tag is not string id) return;
+        var cfg = _ctl.Config;
+        var target = cfg.Presets.FirstOrDefault(p => p.Id == id);
+        if (target is null) return;
+
+        if (cfg.Presets.Count <= 1)
+        {
+            System.Windows.MessageBox.Show(
+                "At least one preset is required.",
+                "Game Party HUD",
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Information);
+            return;
+        }
+
+        var confirm = System.Windows.MessageBox.Show(
+            $"Delete preset '{target.Name}'?",
+            "Game Party HUD",
+            System.Windows.MessageBoxButton.YesNo,
+            System.Windows.MessageBoxImage.Question);
+        if (confirm != System.Windows.MessageBoxResult.Yes) return;
+
+        var remaining = cfg.Presets.Where(p => p.Id != id).ToList();
+        var newActive = cfg.ActivePresetId == id ? remaining[0].Id : cfg.ActivePresetId;
+        var updated = cfg with { Presets = remaining, ActivePresetId = newActive };
+
+        _ctl.UpdateConfig(updated);
+        PopulateFromConfig();              // refreshes selector + Profile/Bars
+        UpdateJoinButtonState();
+        Log.Info($"MainWindow: deleted preset '{target.Name}' (Id={id}); active is now {newActive}.");
+    }
+
+    private void CommitOrRevertRename(string id, System.Windows.Controls.TextBox tb, bool commit)
+    {
+        var item = _presetItems.FirstOrDefault(i => i.Id == id);
+        if (item is null) return;
+
+        if (!commit)
+        {
+            var stored = _ctl.Config.Presets.FirstOrDefault(p => p.Id == id);
+            if (stored is not null) item.Name = stored.Name;
+            item.IsEditing = false;
+            return;
+        }
+
+        var raw = (tb.Text ?? "").Trim();
+        if (raw.Length == 0)
+        {
+            // Empty → revert to stored name.
+            var stored = _ctl.Config.Presets.FirstOrDefault(p => p.Id == id);
+            if (stored is not null) item.Name = stored.Name;
+            item.IsEditing = false;
+            return;
+        }
+
+        bool collides = _ctl.Config.Presets.Any(p => p.Id != id && p.Name == raw);
+        if (collides)
+        {
+            System.Windows.MessageBox.Show(
+                $"A preset named '{raw}' already exists.",
+                "Game Party HUD",
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Warning);
+            var stored = _ctl.Config.Presets.FirstOrDefault(p => p.Id == id);
+            if (stored is not null) item.Name = stored.Name;
+            item.IsEditing = false;
+            return;
+        }
+
+        var cfg = _ctl.Config;
+        var updated = cfg with
+        {
+            Presets = cfg.Presets
+                .Select(p => p.Id == id ? p with { Name = raw } : p)
+                .ToList(),
+        };
+        _ctl.UpdateConfig(updated);
+        item.Name = raw;
+        item.IsEditing = false;
+        Log.Info($"MainWindow: renamed preset Id={id} to '{raw}'.");
     }
 
     private void RefreshPartyState()
@@ -199,7 +485,7 @@ public partial class MainWindow : FluentWindow
         if (_populating) return;
         var nick = NickText.Text?.Trim() ?? "";
         if (nick.Length == 0) return;
-        _ctl.UpdateConfig(_ctl.Config with { Nickname = nick });
+        _ctl.UpdateConfig(_ctl.Config.UpdatePreset(p => p with { Nickname = nick }));
         Log.Info($"MainWindow: nickname changed to '{nick}'.");
     }
 
@@ -236,7 +522,7 @@ public partial class MainWindow : FluentWindow
     {
         if (_populating) return;
         if (RoleCombo.SelectedItem is not RoleOption opt) return;
-        _ctl.UpdateConfig(_ctl.Config with { Role = opt.Role });
+        _ctl.UpdateConfig(_ctl.Config.UpdatePreset(p => p with { Role = opt.Role }));
         Log.Info($"MainWindow: role changed to {opt.Role}.");
     }
 
@@ -262,9 +548,9 @@ public partial class MainWindow : FluentWindow
 
             var newConfig = bar switch
             {
-                BarType.Hp      => _ctl.Config with { HpCalibration      = cal, NicknameRegion = null },
-                BarType.Stamina => _ctl.Config with { StaminaCalibration = cal },
-                BarType.Mana    => _ctl.Config with { ManaCalibration    = cal },
+                BarType.Hp      => _ctl.Config.UpdatePreset(p => p with { HpCalibration      = cal }),
+                BarType.Stamina => _ctl.Config.UpdatePreset(p => p with { StaminaCalibration = cal }),
+                BarType.Mana    => _ctl.Config.UpdatePreset(p => p with { ManaCalibration    = cal }),
                 _ => _ctl.Config
             };
             _ctl.UpdateConfig(newConfig);
@@ -448,14 +734,15 @@ public partial class MainWindow : FluentWindow
 
     private bool ValidateBeforeJoiningParty()
     {
-        if (_ctl.Config.HpCalibration is null)
+        var ap = _ctl.Config.ActivePreset;
+        if (ap.HpCalibration is null)
         {
             SetPartyStatus("Set your HP bar region first (see 'Pick HP bar region' above).",
                 InfoBarSeverity.Warning);
             return false;
         }
-        if (string.IsNullOrWhiteSpace(_ctl.Config.Nickname)
-            || _ctl.Config.Nickname == AppConfig.Defaults.Nickname)
+        if (string.IsNullOrWhiteSpace(ap.Nickname)
+            || ap.Nickname == AppConfig.Defaults.ActivePreset.Nickname)
         {
             SetPartyStatus("Enter your nickname first.", InfoBarSeverity.Warning);
             NickText.Focus();
@@ -529,7 +816,7 @@ public partial class MainWindow : FluentWindow
     {
         if (_populating) return;
         StaminaPickRow.Visibility = Visibility.Collapsed;
-        _ctl.UpdateConfig(_ctl.Config with { StaminaCalibration = null });
+        _ctl.UpdateConfig(_ctl.Config.UpdatePreset(p => p with { StaminaCalibration = null }));
         SetRegionStatus(BarType.Stamina, RegionStatusState.NotSet, "Not set yet.");
         Log.Info("MainWindow: Include-stamina checkbox unticked; calibration cleared.");
     }
@@ -545,7 +832,7 @@ public partial class MainWindow : FluentWindow
     {
         if (_populating) return;
         ManaPickRow.Visibility = Visibility.Collapsed;
-        _ctl.UpdateConfig(_ctl.Config with { ManaCalibration = null });
+        _ctl.UpdateConfig(_ctl.Config.UpdatePreset(p => p with { ManaCalibration = null }));
         SetRegionStatus(BarType.Mana, RegionStatusState.NotSet, "Not set yet.");
         Log.Info("MainWindow: Include-mana checkbox unticked; calibration cleared.");
     }

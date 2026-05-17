@@ -1,17 +1,15 @@
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using GamePartyHud.Capture;
+using System.Text.Json.Serialization;
+using GamePartyHud.Diagnostics;
 using GamePartyHud.Party;
 
 namespace GamePartyHud.Config;
 
 public sealed record AppConfig(
-    BarCalibration? HpCalibration,
-    BarCalibration? StaminaCalibration,
-    BarCalibration? ManaCalibration,
-    CaptureRegion? NicknameRegion,
-    string Nickname,
-    Role Role,
+    IReadOnlyList<Preset> Presets,
+    string ActivePresetId,
     HudPosition HudPosition,
     bool HudLocked,
     string? LastPartyId,
@@ -63,14 +61,27 @@ public sealed record AppConfig(
         return fallback;
     }
 
+    /// <summary>
+    /// Sentinel id used by <see cref="Defaults"/> and the legacy-config migration
+    /// in <c>ConfigStore.Load</c> for the auto-seeded preset, so successive runs
+    /// reference a stable id rather than a fresh GUID each time.
+    /// </summary>
+    public const string DefaultPresetId = "default";
+
     public static AppConfig Defaults { get; } = new(
-        HpCalibration: null,
-        StaminaCalibration: null,
-        ManaCalibration: null,
-        NicknameRegion: null,
-        Nickname: "Player",
-        Role: Role.Utility,
-        HudPosition: new HudPosition(100, 100, 0),
+        Presets: new[]
+        {
+            new Preset(
+                Id: DefaultPresetId,
+                Name: "Default",
+                Nickname: "Player",
+                Role: Role.Utility,
+                HpCalibration: null,
+                StaminaCalibration: null,
+                ManaCalibration: null),
+        },
+        ActivePresetId: DefaultPresetId,
+        HudPosition: new HudPosition(100, 100),
         HudLocked: true,
         LastPartyId: null,
         PollIntervalMs: 700,
@@ -78,6 +89,25 @@ public sealed record AppConfig(
         RelayFallbackUrl: DefaultRelayFallbackUrl,
         FullscreenDisclaimerDismissed: false,
         HudScale: 1.0);
+
+    /// <summary>
+    /// The preset currently in use. Resolves <see cref="ActivePresetId"/> against
+    /// <see cref="Presets"/>; falls back to the first preset (and logs a warn) if
+    /// the id is stale — protects callers from an `IndexOutOfRangeException` if
+    /// config.json was hand-edited or got out of sync mid-write. <c>ConfigStore.Load</c>
+    /// also repairs this invariant; the fallback here is belt-and-suspenders.
+    /// </summary>
+    [JsonIgnore]
+    public Preset ActivePreset
+    {
+        get
+        {
+            var match = Presets.FirstOrDefault(p => p.Id == ActivePresetId);
+            if (match is not null) return match;
+            Log.Warn($"AppConfig: ActivePresetId '{ActivePresetId}' did not match any preset; falling back to '{Presets[0].Id}'.");
+            return Presets[0];
+        }
+    }
 }
 
-public sealed record HudPosition(double X, double Y, int Monitor);
+public sealed record HudPosition(double X, double Y);

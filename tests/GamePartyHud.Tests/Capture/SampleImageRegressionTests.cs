@@ -41,7 +41,7 @@ public class SampleImageRegressionTests
     public void Analyze_MatchesFilenamePercentage_WithinTolerance(string file, float expected)
     {
         var (bgra, w, h) = ImageLoader.Load(ImageLoader.SamplePath(file));
-        var cal = new BarCalibration(new CaptureRegion(0, 0, 0, w, h), FillDirection.LTR);
+        var cal = new BarCalibration(new CaptureRegion(0, 0, w, h), FillDirection.LTR);
         var actual = new BarAnalyzer().Analyze(bgra, w, h, cal);
 
         Assert.InRange(actual, expected - Tolerance, expected + Tolerance);
@@ -57,7 +57,7 @@ public class SampleImageRegressionTests
             var file = (string)row[0];
             var expected = (float)row[1];
             var (bgra, w, h) = ImageLoader.Load(ImageLoader.SamplePath(file));
-            var cal = new BarCalibration(new CaptureRegion(0, 0, 0, w, h), FillDirection.LTR);
+            var cal = new BarCalibration(new CaptureRegion(0, 0, w, h), FillDirection.LTR);
             var actual = new BarAnalyzer().Analyze(bgra, w, h, cal);
             totalAbs += Math.Abs(actual - expected);
             n++;
@@ -92,7 +92,7 @@ public class SampleImageRegressionTests
     public void AnalyzeMana_MatchesFilenamePercentage_WithinTolerance(string file, float expected)
     {
         var (bgra, w, h) = ImageLoader.Load(ImageLoader.ManaSamplePath(file));
-        var cal = new BarCalibration(new CaptureRegion(0, 0, 0, w, h), FillDirection.LTR);
+        var cal = new BarCalibration(new CaptureRegion(0, 0, w, h), FillDirection.LTR);
         var actual = new BarAnalyzer().Analyze(bgra, w, h, cal);
 
         Assert.InRange(actual, expected - ManaTolerance, expected + ManaTolerance);
@@ -108,7 +108,7 @@ public class SampleImageRegressionTests
             var file = (string)row[0];
             var expected = (float)row[1];
             var (bgra, w, h) = ImageLoader.Load(ImageLoader.ManaSamplePath(file));
-            var cal = new BarCalibration(new CaptureRegion(0, 0, 0, w, h), FillDirection.LTR);
+            var cal = new BarCalibration(new CaptureRegion(0, 0, w, h), FillDirection.LTR);
             var actual = new BarAnalyzer().Analyze(bgra, w, h, cal);
             totalAbs += Math.Abs(actual - expected);
             n++;

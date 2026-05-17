@@ -1,7 +1,12 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
+using GamePartyHud.Capture;
+using GamePartyHud.Diagnostics;
+using GamePartyHud.Party;
 
 namespace GamePartyHud.Config;
 
@@ -34,7 +39,8 @@ public sealed class ConfigStore
         try
         {
             var json = File.ReadAllText(_path);
-            var raw = JsonSerializer.Deserialize<AppConfig>(json, _opts) ?? AppConfig.Defaults;
+            var raw = ParseWithMigration(json);
+            var repaired = RepairInvariants(raw);
 
             // RelayUrl, RelayFallbackUrl and PollIntervalMs are owned by the
             // binary, not by per-machine config. Always promote the build-time
@@ -57,7 +63,7 @@ public sealed class ConfigStore
             //
             // Forks that need different values set their own secrets / change
             // AppConfig.Defaults and rebuild.
-            return raw with
+            return repaired with
             {
                 RelayUrl = AppConfig.DefaultRelayUrl,
                 RelayFallbackUrl = AppConfig.DefaultRelayFallbackUrl,
@@ -65,7 +71,7 @@ public sealed class ConfigStore
                 // HudScale stays user-owned (persists across launches) but is
                 // clamped to [0.5, 2.0] so a hand-edited extreme can't break
                 // the HUD layout — see SanitiseHudScale below.
-                HudScale = SanitiseHudScale(raw.HudScale),
+                HudScale = SanitiseHudScale(repaired.HudScale),
             };
         }
         catch (Exception)
@@ -74,6 +80,136 @@ public sealed class ConfigStore
             try { File.Move(_path, _path + ".bad-" + DateTime.UtcNow.Ticks, overwrite: true); } catch { }
             return AppConfig.Defaults;
         }
+    }
+
+    /// <summary>
+    /// Detects legacy config.json (no top-level "Presets" key) and migrates it
+    /// to the new shape on the fly: pack the old top-level Nickname / Role /
+    /// HpCalibration / StaminaCalibration / ManaCalibration into one preset
+    /// named "Default". New-shape files deserialise straight through.
+    /// Returns AppConfig.Defaults if JSON is structurally invalid; the caller's
+    /// catch block handles parse-time exceptions.
+    /// </summary>
+    private AppConfig ParseWithMigration(string json)
+    {
+        var node = JsonNode.Parse(json) as JsonObject
+            ?? throw new JsonException("Root is not a JSON object.");
+
+        // Web defaults are case-insensitive on property lookup at Deserialize
+        // time but JsonObject.ContainsKey is case-sensitive — check both casings.
+        bool hasNewShape = node.ContainsKey("presets") || node.ContainsKey("Presets");
+        if (hasNewShape)
+        {
+            return node.Deserialize<AppConfig>(_opts) ?? AppConfig.Defaults;
+        }
+
+        // Legacy shape — pull each old top-level field with a default fallback.
+        var defaultPreset = AppConfig.Defaults.ActivePreset;
+        var migrated = new Preset(
+            Id: AppConfig.DefaultPresetId,
+            Name: "Default",
+            Nickname:           GetString(node, "nickname")       ?? defaultPreset.Nickname,
+            Role:               GetEnum<Role>(node, "role")       ?? defaultPreset.Role,
+            HpCalibration:      GetObject<BarCalibration>(node, "hpCalibration"),
+            StaminaCalibration: GetObject<BarCalibration>(node, "staminaCalibration"),
+            ManaCalibration:    GetObject<BarCalibration>(node, "manaCalibration"));
+
+        // Strip the legacy keys we've consumed plus the three dead ones being
+        // removed in this PR so they don't leak through.
+        foreach (var legacy in new[]
+        {
+            "nickname", "role",
+            "hpCalibration", "staminaCalibration", "manaCalibration",
+            "nicknameRegion",
+        })
+        {
+            node.Remove(legacy);
+        }
+
+        // Inject the new fields so we can use the normal deserialiser for everything else.
+        node["presets"] = JsonSerializer.SerializeToNode(new[] { migrated }, _opts);
+        node["activePresetId"] = AppConfig.DefaultPresetId;
+
+        Log.Info($"ConfigStore: migrated legacy config.json to preset shape (preset='{migrated.Name}', nickname='{migrated.Nickname}').");
+
+        return node.Deserialize<AppConfig>(_opts) ?? AppConfig.Defaults;
+    }
+
+    private static string? GetString(JsonObject node, string key)
+    {
+        if (!node.TryGetPropertyValue(key, out var v) || v is null) return null;
+        try { return v.GetValue<string>(); }
+        catch { return null; }
+    }
+
+    private static TEnum? GetEnum<TEnum>(JsonObject node, string key) where TEnum : struct, Enum
+    {
+        if (!node.TryGetPropertyValue(key, out var v) || v is null) return null;
+        try
+        {
+            var raw = v.GetValue<string>();
+            return Enum.TryParse<TEnum>(raw, ignoreCase: true, out var parsed) ? parsed : null;
+        }
+        catch { return null; }
+    }
+
+    private TValue? GetObject<TValue>(JsonObject node, string key)
+    {
+        if (!node.TryGetPropertyValue(key, out var v) || v is null) return default;
+        try { return v.Deserialize<TValue>(_opts); }
+        catch { return default; }
+    }
+
+    /// <summary>
+    /// Belt-and-suspenders enforcement of the AppConfig preset invariants:
+    ///   1. Presets.Count &gt;= 1   (else inject the Defaults preset)
+    ///   2. ActivePresetId matches one of the presets  (else point to Presets[0])
+    ///   3. Preset ids are unique  (else regenerate dupes' ids)
+    /// Repairs are logged so config drift shows up in app.log.
+    /// </summary>
+    private static AppConfig RepairInvariants(AppConfig cfg)
+    {
+        var presets = cfg.Presets;
+        if (presets is null || presets.Count == 0)
+        {
+            Log.Warn("AppConfig: Presets was empty on load; seeding with the Defaults preset.");
+            return cfg with
+            {
+                Presets = AppConfig.Defaults.Presets,
+                ActivePresetId = AppConfig.DefaultPresetId,
+            };
+        }
+
+        // Re-id duplicates (shouldn't happen via UI, but a hand-edit could).
+        var seenIds = new HashSet<string>();
+        var repaired = new List<Preset>(presets.Count);
+        bool anyChange = false;
+        foreach (var p in presets)
+        {
+            if (seenIds.Add(p.Id))
+            {
+                repaired.Add(p);
+            }
+            else
+            {
+                var newId = Guid.NewGuid().ToString();
+                Log.Warn($"AppConfig: duplicate preset id '{p.Id}' on load; regenerated as '{newId}'.");
+                repaired.Add(p with { Id = newId });
+                anyChange = true;
+                seenIds.Add(newId);
+            }
+        }
+        if (anyChange) presets = repaired;
+
+        string activeId = cfg.ActivePresetId ?? "";
+        if (!seenIds.Contains(activeId))
+        {
+            var fallback = presets[0].Id;
+            Log.Warn($"AppConfig: ActivePresetId '{activeId}' did not match any preset; repaired to '{fallback}'.");
+            activeId = fallback;
+        }
+
+        return cfg with { Presets = presets, ActivePresetId = activeId };
     }
 
     private static double SanitiseHudScale(double raw)
