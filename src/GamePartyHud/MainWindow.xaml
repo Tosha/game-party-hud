@@ -56,11 +56,21 @@
                                VerticalAlignment="Center"/>
                     <ComboBox Grid.Column="1"
                               x:Name="PresetCombo"
-                              Width="180"
+                              Width="160"
                               SelectionChanged="OnPresetChanged">
+                        <!-- Override the wpfui ComboBoxItem default MinHeight
+                             (which produces ~50px-tall rows) so the dropdown
+                             stays compact. Padding 8,2 + MinHeight 0 yields
+                             ~24px rows, matching the Role combo's visual scale. -->
+                        <ComboBox.ItemContainerStyle>
+                            <Style TargetType="ComboBoxItem">
+                                <Setter Property="Padding" Value="8,2"/>
+                                <Setter Property="MinHeight" Value="0"/>
+                            </Style>
+                        </ComboBox.ItemContainerStyle>
                         <ComboBox.ItemTemplate>
                             <DataTemplate>
-                                <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
+                                <TextBlock Text="{Binding Name}" FontSize="13" VerticalAlignment="Center"/>
                             </DataTemplate>
                         </ComboBox.ItemTemplate>
                     </ComboBox>
