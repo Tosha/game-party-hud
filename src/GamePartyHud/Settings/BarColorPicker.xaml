@@ -1,0 +1,147 @@
+<UserControl x:Class="GamePartyHud.Settings.BarColorPicker"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:GamePartyHud.Settings">
+    <UserControl.Resources>
+        <!-- Converter so the closed-state swatch's Background reacts to
+             ColorHex without code-behind plumbing. Declared at the top
+             so StaticResource lookups below resolve at parse time. -->
+        <local:HexToBrushConverter x:Key="HexToBrushConverter"/>
+    </UserControl.Resources>
+    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+        <!-- Clickable swatch -->
+        <Border x:Name="SwatchBorder"
+                Width="24" Height="24"
+                CornerRadius="3"
+                BorderBrush="#33FFFFFF"
+                BorderThickness="1"
+                Cursor="Hand"
+                MouseLeftButtonUp="OnSwatchClicked"
+                Background="{Binding ColorHex, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource HexToBrushConverter}}"/>
+        <TextBlock x:Name="HexLabel"
+                   Margin="8,0,0,0"
+                   VerticalAlignment="Center"
+                   FontFamily="Consolas, Cascadia Mono, monospace"
+                   FontSize="11"
+                   Text="{Binding ColorHex, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+
+        <!-- Popup: SV square + hue strip + hex + preview -->
+        <Popup x:Name="PickerPopup"
+               StaysOpen="False"
+               Placement="Bottom"
+               PlacementTarget="{Binding ElementName=SwatchBorder}"
+               AllowsTransparency="True"
+               PopupAnimation="Fade"
+               Opened="OnPopupOpened"
+               Closed="OnPopupClosed"
+               KeyDown="OnPopupKeyDown">
+            <Border Background="#FF1F1F23"
+                    BorderBrush="#44FFFFFF"
+                    BorderThickness="1"
+                    CornerRadius="4"
+                    Padding="12">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="8"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- SV square -->
+                        <Border Grid.Column="0"
+                                Width="200" Height="160"
+                                BorderBrush="#44FFFFFF"
+                                BorderThickness="1"
+                                ClipToBounds="True"
+                                MouseLeftButtonDown="OnSvSquareMouseDown"
+                                MouseLeftButtonUp="OnSvSquareMouseUp"
+                                MouseMove="OnSvSquareMouseMove">
+                            <Grid>
+                                <Rectangle x:Name="SvHueLayer">
+                                    <Rectangle.Fill>
+                                        <SolidColorBrush x:Name="SvHueBrush" Color="#FFFF0000"/>
+                                    </Rectangle.Fill>
+                                </Rectangle>
+                                <Rectangle>
+                                    <Rectangle.Fill>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                            <GradientStop Color="#FFFFFFFF" Offset="0"/>
+                                            <GradientStop Color="#00FFFFFF" Offset="1"/>
+                                        </LinearGradientBrush>
+                                    </Rectangle.Fill>
+                                </Rectangle>
+                                <Rectangle>
+                                    <Rectangle.Fill>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                            <GradientStop Color="#00000000" Offset="0"/>
+                                            <GradientStop Color="#FF000000" Offset="1"/>
+                                        </LinearGradientBrush>
+                                    </Rectangle.Fill>
+                                </Rectangle>
+                                <Canvas IsHitTestVisible="False">
+                                    <Ellipse x:Name="SvCursor"
+                                             Width="10" Height="10"
+                                             Stroke="White" StrokeThickness="2"
+                                             Fill="Transparent"
+                                             Canvas.Left="0" Canvas.Top="0"/>
+                                </Canvas>
+                            </Grid>
+                        </Border>
+
+                        <!-- Hue strip -->
+                        <Border Grid.Column="2"
+                                Width="16" Height="160"
+                                BorderBrush="#44FFFFFF"
+                                BorderThickness="1"
+                                ClipToBounds="True"
+                                MouseLeftButtonDown="OnHueStripMouseDown"
+                                MouseLeftButtonUp="OnHueStripMouseUp"
+                                MouseMove="OnHueStripMouseMove">
+                            <Grid>
+                                <Rectangle>
+                                    <Rectangle.Fill>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                            <GradientStop Color="#FFFF0000" Offset="0.000"/>
+                                            <GradientStop Color="#FFFFFF00" Offset="0.167"/>
+                                            <GradientStop Color="#FF00FF00" Offset="0.333"/>
+                                            <GradientStop Color="#FF00FFFF" Offset="0.500"/>
+                                            <GradientStop Color="#FF0000FF" Offset="0.667"/>
+                                            <GradientStop Color="#FFFF00FF" Offset="0.833"/>
+                                            <GradientStop Color="#FFFF0000" Offset="1.000"/>
+                                        </LinearGradientBrush>
+                                    </Rectangle.Fill>
+                                </Rectangle>
+                                <Canvas IsHitTestVisible="False">
+                                    <Rectangle x:Name="HueCursor"
+                                               Width="20" Height="3"
+                                               Fill="White"
+                                               Canvas.Left="-2"
+                                               Canvas.Top="0"/>
+                                </Canvas>
+                            </Grid>
+                        </Border>
+                    </Grid>
+
+                    <!-- Hex input -->
+                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0" VerticalAlignment="Center">
+                        <TextBlock Text="Hex" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBox x:Name="HexInput"
+                                 Width="110"
+                                 FontFamily="Consolas, Cascadia Mono, monospace"
+                                 MaxLength="9"
+                                 TextChanged="OnHexInputChanged"/>
+                    </StackPanel>
+
+                    <!-- Preview -->
+                    <TextBlock Text="Preview" Margin="0,10,0,4" Opacity="0.7" FontSize="11"/>
+                    <Border x:Name="PreviewBorder"
+                            Width="200" Height="22"
+                            CornerRadius="2"
+                            BorderBrush="#44FFFFFF"
+                            BorderThickness="1"/>
+                </StackPanel>
+            </Border>
+        </Popup>
+    </StackPanel>
+</UserControl>
