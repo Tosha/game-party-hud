@@ -117,6 +117,11 @@ public partial class MainWindow : FluentWindow
                 : Visibility.Visible;
             NickText.Text = cfg.Nickname == AppConfig.Defaults.Nickname ? "" : cfg.Nickname;
             RoleCombo.SelectedItem = RoleOptions.FirstOrDefault(o => o.Role == cfg.Role) ?? RoleOptions[0];
+            // Prepopulate the join input with the last party id the user
+            // joined or created. The TextChanged handler will pick this up
+            // and flip the Join button to green if it's a complete id,
+            // so a returning user can rejoin with a single click.
+            PartyIdInput.Text = cfg.LastPartyId ?? "";
 
             if (cfg.HpCalibration is { } cal)
             {
