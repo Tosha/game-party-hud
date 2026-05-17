@@ -33,10 +33,12 @@ public partial class App : Application, MainWindow.IController
     private string? _currentPartyId;
     private MainWindow? _main;
     private IDiscordNotifier? _discord;
+    private HudTheme? _theme;
 
     // -- MainWindow.IController surface --------------------------------------
 
     AppConfig MainWindow.IController.Config => _config;
+    Hud.HudTheme MainWindow.IController.HudTheme => _theme!;
     string? MainWindow.IController.CurrentPartyId => _currentPartyId;
     int MainWindow.IController.MemberCount => _state?.Members.Count ?? 0;
 
@@ -45,6 +47,9 @@ public partial class App : Application, MainWindow.IController
     void MainWindow.IController.UpdateConfig(AppConfig cfg)
     {
         _config = cfg;
+        // Refresh the HUD theme so colour / opacity changes from the
+        // SettingsWindow repaint the overlay on the next render tick.
+        _theme?.RefreshFrom(cfg);
         // Push the new config into the orchestrator so changes to the user's
         // nickname / role / poll interval / calibration are reflected in the
         // very next broadcast tick — both on the local HUD and on the wire to
@@ -55,20 +60,27 @@ public partial class App : Application, MainWindow.IController
         catch (Exception ex) { Log.Error("Failed to persist config.", ex); }
     }
 
-    void MainWindow.IController.ResetHudLayout()
+    void MainWindow.IController.ResetHudToDefaults()
     {
         if (_hud is null) return;
-        _hud.Left  = AppConfig.Defaults.HudPosition.X;
-        _hud.Top   = AppConfig.Defaults.HudPosition.Y;
-        _hud.Scale = AppConfig.Defaults.HudScale;
+        var d = AppConfig.Defaults;
+        _hud.Left  = d.HudPosition.X;
+        _hud.Top   = d.HudPosition.Y;
+        _hud.Scale = d.HudScale;
         _config = _config with
         {
-            HudPosition = AppConfig.Defaults.HudPosition,
-            HudScale    = AppConfig.Defaults.HudScale,
+            HudPosition          = d.HudPosition,
+            HudScale             = d.HudScale,
+            HudLocked            = d.HudLocked,
+            HpBarColor           = d.HpBarColor,
+            StaminaBarColor      = d.StaminaBarColor,
+            ManaBarColor         = d.ManaBarColor,
+            HudBackgroundOpacity = d.HudBackgroundOpacity,
         };
+        _theme?.RefreshFrom(_config);
         try { _store?.Save(_config); }
         catch (Exception ex) { Log.Error("Failed to persist config after HUD reset.", ex); }
-        Log.Info("HUD layout reset to defaults.");
+        Log.Info("App: reset HUD to defaults (position, scale, lock, colors, opacity).");
     }
 
     Task MainWindow.IController.CreatePartyAsync() =>
@@ -138,10 +150,13 @@ public partial class App : Application, MainWindow.IController
             ? "Discord notifications: disabled (no webhook URL compiled in)."
             : "Discord notifications: enabled.");
 
+        _theme = new HudTheme(_config);
+
         _state = new PartyState();
         _state.Changed += () => PartyStateChanged?.Invoke();
 
         _hud = new HudWindow();
+        _hud.DataContext = new { HudTheme = _theme };
         _sync = new HudViewModelSync(_state, _hud.MemberList);
         _hud.Left = _config.HudPosition.X;
         _hud.Top = _config.HudPosition.Y;

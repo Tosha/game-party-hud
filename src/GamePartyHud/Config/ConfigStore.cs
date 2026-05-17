@@ -72,6 +72,7 @@ public sealed class ConfigStore
                 // clamped to [0.5, 2.0] so a hand-edited extreme can't break
                 // the HUD layout — see SanitiseHudScale below.
                 HudScale = SanitiseHudScale(repaired.HudScale),
+                HudBackgroundOpacity = SanitiseHudBackgroundOpacity(repaired.HudBackgroundOpacity),
             };
         }
         catch (Exception)
@@ -219,6 +220,16 @@ public sealed class ConfigStore
         // invisible, infinitely large, or undefined.
         if (double.IsNaN(raw) || double.IsInfinity(raw)) return 1.0;
         return Math.Clamp(raw, 0.5, 2.0);
+    }
+
+    private static double SanitiseHudBackgroundOpacity(double raw)
+    {
+        // Out-of-range, NaN, or infinite values fall back to the default
+        // (0.40). Clamped to [0.1, 1.0] so the user can never accidentally
+        // hide the HUD chrome entirely (which would also hide the lock
+        // button and trap them in dragged-off-screen territory).
+        if (double.IsNaN(raw) || double.IsInfinity(raw)) return 0.40;
+        return Math.Clamp(raw, 0.10, 1.0);
     }
 
     public void Save(AppConfig config)

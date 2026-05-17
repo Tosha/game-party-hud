@@ -68,14 +68,8 @@
                          many other bars are stacked underneath. -->
                     <Grid Grid.Row="0">
                         <Border HorizontalAlignment="Left"
-                                Width="{Binding HpPercent, Converter={StaticResource HpWidthConverter}, ConverterParameter=174}">
-                            <Border.Background>
-                                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                                    <GradientStop Color="#FF821414" Offset="0"/>
-                                    <GradientStop Color="#FF591414" Offset="1"/>
-                                </LinearGradientBrush>
-                            </Border.Background>
-                        </Border>
+                                Width="{Binding HpPercent, Converter={StaticResource HpWidthConverter}, ConverterParameter=174}"
+                                Background="{Binding DataContext.HudTheme.HpBarBrush, RelativeSource={RelativeSource AncestorType=Window}}"/>
                         <Border HorizontalAlignment="Left"
                                 Height="2" VerticalAlignment="Top"
                                 Margin="1,1,0,0"
@@ -95,36 +89,22 @@
                         </TextBlock>
                     </Grid>
 
-                    <!-- Row 1: Stamina — darker amber. The original FCD34D was
-                         nearly white-yellow and washed out the nickname; dropped
-                         to ~60% intensity for the top stop. -->
+                    <!-- Row 1: Stamina — themed via HudTheme.StaminaBarBrush. -->
                     <Grid Grid.Row="1" Visibility="{Binding HasStamina, Converter={StaticResource BoolToVis}}">
                         <Border Height="1" VerticalAlignment="Top" Background="#88000000"/>
                         <Border HorizontalAlignment="Left"
                                 Margin="0,1,0,0"
-                                Width="{Binding StaminaPercent, Converter={StaticResource HpWidthConverter}, ConverterParameter=174}">
-                            <Border.Background>
-                                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                                    <GradientStop Color="#FF977E2E" Offset="0"/>
-                                    <GradientStop Color="#FF795202" Offset="1"/>
-                                </LinearGradientBrush>
-                            </Border.Background>
-                        </Border>
+                                Width="{Binding StaminaPercent, Converter={StaticResource HpWidthConverter}, ConverterParameter=174}"
+                                Background="{Binding DataContext.HudTheme.StaminaBarBrush, RelativeSource={RelativeSource AncestorType=Window}}"/>
                     </Grid>
 
-                    <!-- Row 2: Mana — darker blue palette. -->
+                    <!-- Row 2: Mana — themed via HudTheme.ManaBarBrush. -->
                     <Grid Grid.Row="2" Visibility="{Binding HasMana, Converter={StaticResource BoolToVis}}">
                         <Border Height="1" VerticalAlignment="Top" Background="#88000000"/>
                         <Border HorizontalAlignment="Left"
                                 Margin="0,1,0,0"
-                                Width="{Binding ManaPercent, Converter={StaticResource HpWidthConverter}, ConverterParameter=174}">
-                            <Border.Background>
-                                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                                    <GradientStop Color="#FF1A45A4" Offset="0"/>
-                                    <GradientStop Color="#FF152961" Offset="1"/>
-                                </LinearGradientBrush>
-                            </Border.Background>
-                        </Border>
+                                Width="{Binding ManaPercent, Converter={StaticResource HpWidthConverter}, ConverterParameter=174}"
+                                Background="{Binding DataContext.HudTheme.ManaBarBrush, RelativeSource={RelativeSource AncestorType=Window}}"/>
                     </Grid>
                 </Grid>
             </Grid>
