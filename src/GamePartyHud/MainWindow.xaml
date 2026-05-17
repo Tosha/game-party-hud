@@ -247,8 +247,18 @@
                                    Text="Generates a 6-character code you share with your teammates."/>
 
                         <TextBlock Text="or join an existing party" Opacity="0.75" Margin="0,20,0,6"/>
-                        <StackPanel Orientation="Horizontal">
-                            <ui:TextBox x:Name="PartyIdInput"
+                        <!-- Grid (not StackPanel) for the join row so the Join
+                             button can stretch to fill the remaining width.
+                             Its right edge ends up flush with the gear button
+                             at top-right and the Quit button at bottom-right. -->
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>  <!-- TextBox -->
+                                <ColumnDefinition Width="*"/>     <!-- Join (stretches) -->
+                                <ColumnDefinition Width="Auto"/>  <!-- ProgressRing -->
+                            </Grid.ColumnDefinitions>
+                            <ui:TextBox Grid.Column="0"
+                                        x:Name="PartyIdInput"
                                         MaxLength="6"
                                         CharacterCasing="Upper"
                                         PlaceholderText="ABCDEF"
@@ -256,22 +266,25 @@
                                         FontSize="14"
                                         TextChanged="OnPartyIdInputChanged"
                                         KeyDown="OnPartyIdInputKeyDown"/>
-                            <ui:Button x:Name="JoinButton"
+                            <ui:Button Grid.Column="1"
+                                       x:Name="JoinButton"
                                        Content="Join"
                                        Icon="PlugConnected24"
                                        Appearance="Secondary"
                                        IsEnabled="False"
                                        Margin="8,0,0,0"
                                        Padding="16,0"
+                                       HorizontalAlignment="Stretch"
                                        VerticalAlignment="Stretch"
                                        Click="OnJoin"/>
-                            <ui:ProgressRing x:Name="JoinProgress"
+                            <ui:ProgressRing Grid.Column="2"
+                                             x:Name="JoinProgress"
                                              Width="20" Height="20"
                                              IsIndeterminate="True"
                                              Visibility="Collapsed"
                                              Margin="12,0,0,0"
                                              VerticalAlignment="Center"/>
-                        </StackPanel>
+                        </Grid>
                     </StackPanel>
 
                     <!-- In a party -->
