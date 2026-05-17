@@ -88,6 +88,49 @@ public sealed class BarAnalyzer
         return colFilled;
     }
 
+    /// <summary>
+    /// For each column, count the number of distinct contiguous runs of
+    /// saturated pixels, where each run is at least
+    /// <paramref name="minRunPx"/> rows tall. Used by the validator to
+    /// detect vertically-stacked bars or strong horizontal breaks within
+    /// a captured region — a clean bar has exactly one run per column, a
+    /// region containing two stacked bars has two.
+    /// </summary>
+    public static int[] CountColumnSaturatedRuns(ReadOnlySpan<byte> bgra, int width, int height, BarCalibration cal, int minRunPx)
+    {
+        if (width <= 0 || height <= 0) return Array.Empty<int>();
+        if (bgra.Length < width * height * 4) throw new ArgumentException("bgra too small", nameof(bgra));
+        if (minRunPx < 1) minRunPx = 1;
+
+        bool ltr = cal.Direction == FillDirection.LTR;
+        var counts = new int[width];
+
+        for (int i = 0; i < width; i++)
+        {
+            int col = ltr ? i : (width - 1 - i);
+            int currentRun = 0;
+            int runCount = 0;
+            for (int y = 0; y < height; y++)
+            {
+                int idx = (y * width + col) * 4;
+                var hsv = Hsv.FromBgra(bgra[idx], bgra[idx + 1], bgra[idx + 2]);
+                if (IsFilledPixel(hsv))
+                {
+                    currentRun++;
+                }
+                else
+                {
+                    if (currentRun >= minRunPx) runCount++;
+                    currentRun = 0;
+                }
+            }
+            // Close the final run if it ends at the bottom of the column.
+            if (currentRun >= minRunPx) runCount++;
+            counts[i] = runCount;
+        }
+        return counts;
+    }
+
     public float Analyze(ReadOnlySpan<byte> bgra, int width, int height, BarCalibration cal)
     {
         if (width <= 0 || height <= 0) return 0f;
