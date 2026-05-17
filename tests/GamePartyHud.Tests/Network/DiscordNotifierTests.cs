@@ -59,9 +59,12 @@ public class DiscordNotifierTests
         Assert.Equal("https://discord.example/webhook", req.RequestUri!.ToString());
 
         // JsonSerializer.Serialize emits no whitespace between tokens by default,
-        // so substring matches work directly against the raw body.
+        // so substring matches work directly against the raw body. The
+        // **name** and **id** markers are Discord-Markdown bold; the
+        // re-use sentence tells teammates the id is good for future
+        // sessions, not just the current one.
         var body = handler.Bodies[0];
-        Assert.Contains("\"content\":\"BananaBrain created a party with id ABCDEF\"", body);
+        Assert.Contains("\"content\":\"**BananaBrain** created a party with id **ABCDEF**. The same id can be reused for multiple sessions.\"", body);
         Assert.Contains("\"parse\":[]", body);
     }
 
