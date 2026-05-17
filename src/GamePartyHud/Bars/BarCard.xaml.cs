@@ -153,6 +153,15 @@ public partial class BarCard : UserControl
         }
     }
 
+    // Colors for the preview Border background:
+    //   default        — dark transparent panel (lets the live capture pop)
+    //   disabled grey  — flat mid-grey so the bar reads clearly as "off",
+    //                    not just dimmed dark.
+    private static readonly Brush DefaultPreviewBackground =
+        new SolidColorBrush(Color.FromArgb(0x22, 0x00, 0x00, 0x00));
+    private static readonly Brush DisabledPreviewBackground =
+        new SolidColorBrush(Color.FromArgb(0x55, 0x88, 0x88, 0x88));
+
     private void UpdatePlaceholderVisibility()
     {
         bool showImage = _calibration is not null && _isBarEnabled;
@@ -164,14 +173,18 @@ public partial class BarCard : UserControl
         }
         else if (!_isBarEnabled)
         {
-            PreviewPlaceholder.Text = "Not enabled. Toggle on to broadcast.";
+            PreviewPlaceholder.Text = "Inactive";
         }
     }
 
     private void UpdateBodyOpacity()
     {
-        // Greys out the preview row when disabled, keeping the toggle bright.
-        PreviewBorder.Opacity = _isBarEnabled ? 1.0 : 0.4;
+        // When disabled, swap the preview Border background to a solid grey
+        // (instead of the dark-transparent default) so the bar visibly
+        // reads as inactive rather than just dimmed. Keep the toggle and
+        // the status icon at full opacity so the user can still see + flip
+        // them; only the preview area itself goes grey.
+        PreviewBorder.Background = _isBarEnabled ? DefaultPreviewBackground : DisabledPreviewBackground;
         PickButton.IsEnabled = _isBarEnabled;
         StatusIcon.Opacity = _isBarEnabled ? 1.0 : 0.4;
         UpdatePlaceholderVisibility();
