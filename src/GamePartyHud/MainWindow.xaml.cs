@@ -367,6 +367,45 @@ public partial class MainWindow : FluentWindow
         CommitOrRevertRename(id, tb, commit: true);
     }
 
+    /// <summary>
+    /// ✕ icon click → confirm and delete the preset. If only one preset remains
+    /// the delete is refused (we always need at least one). If the deleted preset
+    /// is the currently-active one, switch to the first remaining preset.
+    /// </summary>
+    private void OnPresetDeleteClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement fe || fe.Tag is not string id) return;
+        var cfg = _ctl.Config;
+        var target = cfg.Presets.FirstOrDefault(p => p.Id == id);
+        if (target is null) return;
+
+        if (cfg.Presets.Count <= 1)
+        {
+            System.Windows.MessageBox.Show(
+                "At least one preset is required.",
+                "Game Party HUD",
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Information);
+            return;
+        }
+
+        var confirm = System.Windows.MessageBox.Show(
+            $"Delete preset '{target.Name}'?",
+            "Game Party HUD",
+            System.Windows.MessageBoxButton.YesNo,
+            System.Windows.MessageBoxImage.Question);
+        if (confirm != System.Windows.MessageBoxResult.Yes) return;
+
+        var remaining = cfg.Presets.Where(p => p.Id != id).ToList();
+        var newActive = cfg.ActivePresetId == id ? remaining[0].Id : cfg.ActivePresetId;
+        var updated = cfg with { Presets = remaining, ActivePresetId = newActive };
+
+        _ctl.UpdateConfig(updated);
+        PopulateFromConfig();              // refreshes selector + Profile/Bars
+        UpdateJoinButtonState();
+        Log.Info($"MainWindow: deleted preset '{target.Name}' (Id={id}); active is now {newActive}.");
+    }
+
     private void CommitOrRevertRename(string id, System.Windows.Controls.TextBox tb, bool commit)
     {
         var item = _presetItems.FirstOrDefault(i => i.Id == id);
