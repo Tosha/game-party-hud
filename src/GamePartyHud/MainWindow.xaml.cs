@@ -222,13 +222,18 @@ public partial class MainWindow : FluentWindow
         {
             _presetItems.Add(new PresetItemViewModel { Id = p.Id, Name = p.Name });
         }
+        _presetItems.Add(new PresetItemViewModel { Id = "", Name = "+ New preset", IsCommandRow = true });
     }
 
     private void OnPresetChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_populating) return;
         if (PresetCombo.SelectedItem is not PresetItemViewModel item) return;
-        if (item.IsCommandRow) return; // Task 8 wires up the create flow on this row.
+        if (item.IsCommandRow)
+        {
+            OnCreatePreset();
+            return;
+        }
 
         // No-op if the user clicked the already-active row.
         if (item.Id == _ctl.Config.ActivePresetId) return;
@@ -237,6 +242,55 @@ public partial class MainWindow : FluentWindow
         PopulateFromConfig();             // refreshes Nickname / Role / Bars
         UpdateJoinButtonState();          // HP-calibration of new preset may flip JoinButton state
         Log.Info($"MainWindow: active preset changed to '{item.Name}' (Id={item.Id}).");
+    }
+
+    /// <summary>
+    /// Creates a new empty preset (placeholder name "New preset"/"New preset N"),
+    /// activates it, refreshes the UI, and reverts PresetCombo's selection from
+    /// the "+ New preset" command row to the newly-created real row. The user
+    /// can then fill in nickname / role / bar regions exactly as on a fresh install.
+    /// </summary>
+    private void OnCreatePreset()
+    {
+        var cfg = _ctl.Config;
+        var newId = Guid.NewGuid().ToString();
+        var newName = NextAvailablePresetName(cfg);
+
+        var newPreset = new Preset(
+            Id: newId,
+            Name: newName,
+            Nickname: "",
+            Role: Role.Utility,
+            HpCalibration: null,
+            StaminaCalibration: null,
+            ManaCalibration: null);
+
+        var updated = cfg with
+        {
+            Presets = cfg.Presets.Append(newPreset).ToList(),
+            ActivePresetId = newId,
+        };
+        _ctl.UpdateConfig(updated);
+
+        PopulateFromConfig();             // refreshes everything against the new preset
+        UpdateJoinButtonState();          // empty calibration -> Join stays disabled
+
+        // PopulateFromConfig set SelectedItem; the dropdown now reads as the new
+        // preset row. The command row is no longer selected.
+        Log.Info($"MainWindow: created new preset '{newName}' (Id={newId}).");
+    }
+
+    private static string NextAvailablePresetName(AppConfig cfg)
+    {
+        const string baseName = "New preset";
+        var existing = cfg.Presets.Select(p => p.Name).ToHashSet();
+        if (!existing.Contains(baseName)) return baseName;
+        for (int n = 2; n < 100; n++)
+        {
+            var candidate = $"{baseName} {n}";
+            if (!existing.Contains(candidate)) return candidate;
+        }
+        return $"{baseName} {DateTime.UtcNow.Ticks}"; // pathological fallback
     }
 
     private void RefreshPartyState()

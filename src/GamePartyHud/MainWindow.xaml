@@ -2,6 +2,7 @@
                  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 xmlns:local="clr-namespace:GamePartyHud"
                  Title="Game Party HUD"
                  Icon="pack://application:,,,/app.ico"
                  SizeToContent="WidthAndHeight"
@@ -68,11 +69,30 @@
                                 <Setter Property="MinHeight" Value="0"/>
                             </Style>
                         </ComboBox.ItemContainerStyle>
-                        <ComboBox.ItemTemplate>
-                            <DataTemplate>
+                        <ComboBox.Resources>
+                            <!-- Regular preset row template -->
+                            <DataTemplate x:Key="PresetRowTemplate">
                                 <TextBlock Text="{Binding Name}" FontSize="13" VerticalAlignment="Center"/>
                             </DataTemplate>
-                        </ComboBox.ItemTemplate>
+                            <!-- "+ New preset" command-row template, styled
+                                 distinctly so it reads as an action, not a
+                                 preset name. -->
+                            <DataTemplate x:Key="CommandRowTemplate">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="+" FontWeight="Bold" Margin="0,0,6,0"
+                                               FontSize="13" VerticalAlignment="Center"
+                                               Foreground="#FF66B2FF"/>
+                                    <TextBlock Text="New preset" FontSize="13"
+                                               VerticalAlignment="Center"
+                                               Foreground="#FF66B2FF"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ComboBox.Resources>
+                        <ComboBox.ItemTemplateSelector>
+                            <local:PresetItemTemplateSelector
+                                PresetRowTemplate="{StaticResource PresetRowTemplate}"
+                                CommandRowTemplate="{StaticResource CommandRowTemplate}"/>
+                        </ComboBox.ItemTemplateSelector>
                     </ComboBox>
                 </Grid>
 
