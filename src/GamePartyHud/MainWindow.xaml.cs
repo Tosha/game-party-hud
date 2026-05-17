@@ -108,6 +108,13 @@ public partial class MainWindow : FluentWindow
         {
             var cfg = _ctl.Config;
             FullscreenDisclaimer.IsOpen = !cfg.FullscreenDisclaimerDismissed;
+            // Collapse the whole control (not just its inner content) when
+            // dismissed, otherwise wpfui's InfoBar keeps its layout slot
+            // even at IsOpen=false and leaves ~30px of empty space at the
+            // top of the window.
+            FullscreenDisclaimer.Visibility = cfg.FullscreenDisclaimerDismissed
+                ? Visibility.Collapsed
+                : Visibility.Visible;
             NickText.Text = cfg.Nickname == AppConfig.Defaults.Nickname ? "" : cfg.Nickname;
             RoleCombo.SelectedItem = RoleOptions.FirstOrDefault(o => o.Role == cfg.Role) ?? RoleOptions[0];
 
@@ -530,6 +537,7 @@ public partial class MainWindow : FluentWindow
         // _populating). Only the user-initiated dismiss path persists state.
         if (_populating) return;
         if (FullscreenDisclaimer.IsOpen) return;
+        FullscreenDisclaimer.Visibility = Visibility.Collapsed;
         _ctl.UpdateConfig(_ctl.Config with { FullscreenDisclaimerDismissed = true });
         Log.Info("MainWindow: fullscreen disclaimer dismissed.");
     }
