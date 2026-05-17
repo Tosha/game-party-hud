@@ -44,24 +44,26 @@ public sealed class BarAnalyzer
     /// anti-alias, dark frame, or empty-bar grey.</summary>
     public static bool IsFilledPixel(Hsv hsv) => hsv.S >= FilledMinSaturation;
 
-    public float Analyze(ReadOnlySpan<byte> bgra, int width, int height, BarCalibration cal)
+    /// <summary>
+    /// Classify each column of the bar region as "filled" (sufficient saturated
+    /// vertical run to be part of the bar's coloured fill) or "missing" (the
+    /// column is empty/grey/text-overlay/frame). Returned array is indexed by
+    /// column from the bar's anchor side (i.e. axis already flipped for RTL),
+    /// so element 0 is always the side the fill starts from.
+    /// Public so external consumers (e.g. <c>BarRegionValidator</c>) can reuse
+    /// the saturation/run-length signal without duplicating it.
+    /// </summary>
+    public static bool[] ClassifyColumns(ReadOnlySpan<byte> bgra, int width, int height, BarCalibration cal)
     {
-        if (width <= 0 || height <= 0) return 0f;
+        if (width <= 0 || height <= 0) return Array.Empty<bool>();
         if (bgra.Length < width * height * 4) throw new ArgumentException("bgra too small", nameof(bgra));
 
-        // A column is classified as "filled" if its longest contiguous run of
-        // saturated pixels is at least ~1/5 of the bar's height. This is the
-        // only reliable signature of an actual bar fill — text overlays (on
-        // either filled or empty side) never produce a long run of saturated
-        // pixels, while a real bar fill always does (typically the full bar
-        // height with maybe a few rows of text interruption).
         int sampleRows = height;
         int minFilledRun = Math.Max(StableRun, sampleRows / 5);
 
         bool ltr = cal.Direction == FillDirection.LTR;
 
-        var colMissing = new bool[width];
-        int missingCount = 0;
+        var colFilled = new bool[width];
         for (int i = 0; i < width; i++)
         {
             int col = ltr ? i : (width - 1 - i);
@@ -81,7 +83,25 @@ public sealed class BarAnalyzer
                     currentRun = 0;
                 }
             }
-            colMissing[i] = longestRun < minFilledRun;
+            colFilled[i] = longestRun >= minFilledRun;
+        }
+        return colFilled;
+    }
+
+    public float Analyze(ReadOnlySpan<byte> bgra, int width, int height, BarCalibration cal)
+    {
+        if (width <= 0 || height <= 0) return 0f;
+        if (bgra.Length < width * height * 4) throw new ArgumentException("bgra too small", nameof(bgra));
+
+        var colFilled = ClassifyColumns(bgra, width, height, cal);
+
+        // Convert to "missing" semantics that the rest of the algorithm uses
+        // (filled=false in the original code → missing=true).
+        var colMissing = new bool[colFilled.Length];
+        int missingCount = 0;
+        for (int i = 0; i < colFilled.Length; i++)
+        {
+            colMissing[i] = !colFilled[i];
             if (colMissing[i]) missingCount++;
         }
 

@@ -7,6 +7,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
+using GamePartyHud.Bars;
 using GamePartyHud.Calibration;
 using GamePartyHud.Capture;
 using GamePartyHud.Config;
@@ -67,8 +68,6 @@ public partial class MainWindow : FluentWindow
 
     private sealed record RoleOption(Role Role, string Glyph, string Label);
 
-    private enum RegionStatusState { NotSet, Ok, Error }
-
     private static readonly RoleOption[] RoleOptions =
         Enum.GetValues<Role>()
             .Select(r => new RoleOption(r, RoleGlyph.For(r), RoleDisplay.For(r)))
@@ -106,14 +105,22 @@ public partial class MainWindow : FluentWindow
     }
 
     private readonly System.Collections.ObjectModel.ObservableCollection<PresetItemViewModel> _presetItems = new();
+    private readonly IScreenCapture _capture;
 
-    public MainWindow(IController controller)
+    public MainWindow(IController controller, IScreenCapture capture)
     {
         InitializeComponent();
         _ctl = controller;
+        _capture = capture;
 
         RoleCombo.ItemsSource = RoleOptions;
         PresetCombo.ItemsSource = _presetItems;
+
+        // Each BarCard owns its own preview source; AttachCapture wires the
+        // screen-grabber that the card lazily uses on first Calibration set.
+        HpCard.AttachCapture(_capture);
+        StaminaCard.AttachCapture(_capture);
+        ManaCard.AttachCapture(_capture);
 
         // Wpf.Ui's InfoBar doesn't expose a public Closed routed event; the
         // built-in close button just flips IsOpen to false. We watch the
@@ -129,6 +136,19 @@ public partial class MainWindow : FluentWindow
         RefreshPartyState();
 
         _ctl.PartyStateChanged += OnCtlPartyStateChanged;
+
+        // Pause preview captures while the settings window is hidden (close
+        // to tray) so we don't spend CPU sampling the screen for a UI no
+        // one is looking at.
+        IsVisibleChanged += OnMainWindowIsVisibleChanged;
+    }
+
+    private void OnMainWindowIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        bool visible = IsVisible;
+        HpCard.SetWindowVisible(visible);
+        StaminaCard.SetWindowVisible(visible);
+        ManaCard.SetWindowVisible(visible);
     }
 
     // ------------------------------------------------------------------
@@ -161,43 +181,15 @@ public partial class MainWindow : FluentWindow
             // so a returning user can rejoin with a single click.
             PartyIdInput.Text = cfg.LastPartyId ?? "";
 
-            if (ap.HpCalibration is { } cal)
-            {
-                SetRegionStatus(BarType.Hp, RegionStatusState.Ok,
-                    $"Saved {cal.Region.W}\u00D7{cal.Region.H} at ({cal.Region.X}, {cal.Region.Y}).");
-            }
-            else
-            {
-                SetRegionStatus(BarType.Hp, RegionStatusState.NotSet, "Not set yet.");
-            }
-
-            if (ap.StaminaCalibration is { } sCal)
-            {
-                IncludeStaminaCheck.IsChecked = true;
-                StaminaPickRow.Visibility = Visibility.Visible;
-                SetRegionStatus(BarType.Stamina, RegionStatusState.Ok,
-                    $"Saved {sCal.Region.W}\u00D7{sCal.Region.H} at ({sCal.Region.X}, {sCal.Region.Y}).");
-            }
-            else
-            {
-                IncludeStaminaCheck.IsChecked = false;
-                StaminaPickRow.Visibility = Visibility.Collapsed;
-                SetRegionStatus(BarType.Stamina, RegionStatusState.NotSet, "Not set yet.");
-            }
-
-            if (ap.ManaCalibration is { } mCal)
-            {
-                IncludeManaCheck.IsChecked = true;
-                ManaPickRow.Visibility = Visibility.Visible;
-                SetRegionStatus(BarType.Mana, RegionStatusState.Ok,
-                    $"Saved {mCal.Region.W}\u00D7{mCal.Region.H} at ({mCal.Region.X}, {mCal.Region.Y}).");
-            }
-            else
-            {
-                IncludeManaCheck.IsChecked = false;
-                ManaPickRow.Visibility = Visibility.Collapsed;
-                SetRegionStatus(BarType.Mana, RegionStatusState.NotSet, "Not set yet.");
-            }
+            // The cards manage their own preview, status icon, and button
+            // appearance from these two properties; just feed in the active
+            // preset's values and they take care of the rest.
+            HpCard.Calibration      = ap.HpCalibration;
+            HpCard.IsBarEnabled     = true;
+            StaminaCard.Calibration  = ap.StaminaCalibration;
+            StaminaCard.IsBarEnabled = ap.StaminaEnabled;
+            ManaCard.Calibration     = ap.ManaCalibration;
+            ManaCard.IsBarEnabled    = ap.ManaEnabled;
         }
         finally { _populating = false; }
     }
@@ -526,10 +518,37 @@ public partial class MainWindow : FluentWindow
         Log.Info($"MainWindow: role changed to {opt.Role}.");
     }
 
-    private void OnPickRegion(object sender, RoutedEventArgs e)
+    // Card-specific pick handlers — each forwards into the shared
+    // PickRegionForBar() flow with the appropriate BarType.
+    private void OnHpPickRequested(object? sender, EventArgs e) => PickRegionForBar(BarType.Hp);
+    private void OnStaminaPickRequested(object? sender, EventArgs e) => PickRegionForBar(BarType.Stamina);
+    private void OnManaPickRequested(object? sender, EventArgs e) => PickRegionForBar(BarType.Mana);
+
+    private void OnStaminaEnabledChanged(object? sender, EventArgs e)
     {
-        var bar = ParseBarType(sender);
-        Log.Info($"MainWindow: Pick-{bar}-region button clicked.");
+        var enabled = StaminaCard.IsBarEnabled;
+        _ctl.UpdateConfig(_ctl.Config.UpdatePreset(p => p with { StaminaEnabled = enabled }));
+        Log.Info($"MainWindow: stamina broadcast enabled={enabled}.");
+    }
+
+    private void OnManaEnabledChanged(object? sender, EventArgs e)
+    {
+        var enabled = ManaCard.IsBarEnabled;
+        _ctl.UpdateConfig(_ctl.Config.UpdatePreset(p => p with { ManaEnabled = enabled }));
+        Log.Info($"MainWindow: mana broadcast enabled={enabled}.");
+    }
+
+    private BarCard CardFor(BarType bar) => bar switch
+    {
+        BarType.Hp      => HpCard,
+        BarType.Stamina => StaminaCard,
+        BarType.Mana    => ManaCard,
+        _ => HpCard
+    };
+
+    private void PickRegionForBar(BarType bar)
+    {
+        Log.Info($"MainWindow: Pick-{bar}-region requested.");
         // Opacity=0 rather than Hide() — Hide() on a WPF window with a child
         // RegionSelectorWindow.ShowDialog has surprising interactions; being
         // invisible via Opacity=0 keeps the main window alive and nothing more.
@@ -555,15 +574,26 @@ public partial class MainWindow : FluentWindow
             };
             _ctl.UpdateConfig(newConfig);
 
-            SetRegionStatus(bar, RegionStatusState.Ok,
-                $"Captured {region.W}\u00D7{region.H} at ({region.X}, {region.Y}).");
+            // Push calibration into the card; clears its pick-time override
+            // and restarts the preview at the new region.
+            var card = CardFor(bar);
+            card.Calibration = cal;
+
+            // Run pick-time validation once against the just-captured region
+            // so the "bar wasn't full" warning sticks until next re-pick.
+            // WindowsScreenCapture is synchronous under the hood (BitBlt +
+            // ValueTask.FromResult), so .GetAwaiter().GetResult() here can't
+            // deadlock.
+            var bgra = _capture.CaptureBgraAsync(cal.Region).AsTask().GetAwaiter().GetResult();
+            var pickTimeResult = BarRegionValidator.Validate(cal.Region, bgra, isPickTime: true);
+            card.SetPickTimeValidation(
+                pickTimeResult.Level == ValidationLevel.Ok ? null : pickTimeResult);
+
             Log.Info($"MainWindow: {bar} region calibrated {region.W}x{region.H}@({region.X},{region.Y}).");
         }
         catch (Exception ex)
         {
-            var failedBar = ParseBarType(sender);
-            Log.Error($"MainWindow: OnPickRegion ({failedBar}) failed.", ex);
-            SetRegionStatus(failedBar, RegionStatusState.Error, "Error: " + ex.Message);
+            Log.Error($"MainWindow: PickRegionForBar ({bar}) failed.", ex);
         }
         finally
         {
@@ -571,9 +601,6 @@ public partial class MainWindow : FluentWindow
             Activate();
         }
     }
-
-    private static BarType ParseBarType(object sender) =>
-        sender is FrameworkElement fe && Enum.TryParse<BarType>(fe.Tag as string, out var t) ? t : BarType.Hp;
 
     private static string PromptFor(BarType bar) => bar switch
     {
@@ -778,63 +805,6 @@ public partial class MainWindow : FluentWindow
             _partyStatusAutoDismiss = timer;
             timer.Start();
         }
-    }
-
-    private void SetRegionStatus(BarType bar, RegionStatusState state, string text)
-    {
-        var (textBlock, iconBlock, chip) = bar switch
-        {
-            BarType.Hp      => (RegionStatus,        RegionStatusIcon,        RegionStatusChip),
-            BarType.Stamina => (StaminaStatus,       StaminaStatusIcon,       StaminaStatusChip),
-            BarType.Mana    => (ManaStatus,          ManaStatusIcon,          ManaStatusChip),
-            _ => (RegionStatus, RegionStatusIcon, RegionStatusChip)
-        };
-
-        textBlock.Text = text;
-        (string icon, string bg, string border, string fg) = state switch
-        {
-            RegionStatusState.Ok    => ("\u2713", "#333E8E3E", "#664CAF50", "#FFAEE6AE"),
-            RegionStatusState.Error => ("\u2717", "#33C62828", "#66EF5350", "#FFFFB4B4"),
-            _                       => ("\u25CB", "#22FFFFFF", "#33FFFFFF", "#CCCCCCCC"),
-        };
-        iconBlock.Text = icon;
-        iconBlock.Foreground = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString(fg)!;
-        textBlock.Foreground = iconBlock.Foreground;
-        chip.Background = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString(bg)!;
-        chip.BorderBrush = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString(border)!;
-    }
-
-    private void OnIncludeStaminaChecked(object sender, RoutedEventArgs e)
-    {
-        if (_populating) return;
-        StaminaPickRow.Visibility = Visibility.Visible;
-        Log.Info("MainWindow: Include-stamina checkbox ticked.");
-        // No config write here; user must explicitly pick a region.
-    }
-
-    private void OnIncludeStaminaUnchecked(object sender, RoutedEventArgs e)
-    {
-        if (_populating) return;
-        StaminaPickRow.Visibility = Visibility.Collapsed;
-        _ctl.UpdateConfig(_ctl.Config.UpdatePreset(p => p with { StaminaCalibration = null }));
-        SetRegionStatus(BarType.Stamina, RegionStatusState.NotSet, "Not set yet.");
-        Log.Info("MainWindow: Include-stamina checkbox unticked; calibration cleared.");
-    }
-
-    private void OnIncludeManaChecked(object sender, RoutedEventArgs e)
-    {
-        if (_populating) return;
-        ManaPickRow.Visibility = Visibility.Visible;
-        Log.Info("MainWindow: Include-mana checkbox ticked.");
-    }
-
-    private void OnIncludeManaUnchecked(object sender, RoutedEventArgs e)
-    {
-        if (_populating) return;
-        ManaPickRow.Visibility = Visibility.Collapsed;
-        _ctl.UpdateConfig(_ctl.Config.UpdatePreset(p => p with { ManaCalibration = null }));
-        SetRegionStatus(BarType.Mana, RegionStatusState.NotSet, "Not set yet.");
-        Log.Info("MainWindow: Include-mana checkbox unticked; calibration cleared.");
     }
 
     private void OnFullscreenDisclaimerIsOpenChanged(object? sender, EventArgs e)

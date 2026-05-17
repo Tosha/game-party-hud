@@ -157,7 +157,7 @@ public partial class App : Application, MainWindow.IController
         _tray.OpenLogFolderRequested  += OpenLogFolder;
         _tray.QuitRequested           += () => _ = QuitAsync();
 
-        _main = new MainWindow(this);
+        _main = new MainWindow(this, _capture!);
         _main.Show();
         Log.Info("Main window shown.");
     }

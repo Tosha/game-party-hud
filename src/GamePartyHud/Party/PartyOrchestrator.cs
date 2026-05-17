@@ -168,10 +168,13 @@ public sealed class PartyOrchestrator : IAsyncDisposable
                 // Snapshot the active preset once per tick so a preset switch
                 // landing mid-tick uses the previous values; the next tick
                 // (≤ PollIntervalMs later) picks up the new preset.
+                // Effective*Calibration() returns null when the user has
+                // toggled that bar off, suppressing broadcast without
+                // clearing the saved calibration.
                 var ap = _cfg.ActivePreset;
                 float? hp = await ReadBarAsync(ap.HpCalibration, _hpSmoother, ct).ConfigureAwait(false);
-                float? stamina = await ReadBarAsync(ap.StaminaCalibration, _staminaSmoother, ct).ConfigureAwait(false);
-                float? mana = await ReadBarAsync(ap.ManaCalibration, _manaSmoother, ct).ConfigureAwait(false);
+                float? stamina = await ReadBarAsync(ap.EffectiveStaminaCalibration(), _staminaSmoother, ct).ConfigureAwait(false);
+                float? mana = await ReadBarAsync(ap.EffectiveManaCalibration(), _manaSmoother, ct).ConfigureAwait(false);
 
                 LogTick(hp, stamina, mana);
 

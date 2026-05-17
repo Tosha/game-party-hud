@@ -24,4 +24,6 @@ public sealed record Preset(
     Role Role,
     BarCalibration? HpCalibration,
     BarCalibration? StaminaCalibration,
-    BarCalibration? ManaCalibration);
+    BarCalibration? ManaCalibration,
+    bool StaminaEnabled = true,
+    bool ManaEnabled = true);

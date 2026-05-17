@@ -73,4 +73,44 @@ public class AppConfigExtensionsTests
         var cfg = WithTwoPresets() with { ActivePresetId = "does-not-exist" };
         Assert.Equal("p1", cfg.ActivePreset.Id);
     }
+
+    [Fact]
+    public void EffectiveStaminaCalibration_ReturnsNullWhenDisabled()
+    {
+        var preset = new Preset(
+            Id: "p", Name: "P", Nickname: "N", Role: Role.Utility,
+            HpCalibration: null,
+            StaminaCalibration: new BarCalibration(new CaptureRegion(0, 0, 100, 20), FillDirection.LTR),
+            ManaCalibration: null,
+            StaminaEnabled: false);
+
+        Assert.Null(preset.EffectiveStaminaCalibration());
+    }
+
+    [Fact]
+    public void EffectiveStaminaCalibration_ReturnsCalibrationWhenEnabled()
+    {
+        var cal = new BarCalibration(new CaptureRegion(0, 0, 100, 20), FillDirection.LTR);
+        var preset = new Preset(
+            Id: "p", Name: "P", Nickname: "N", Role: Role.Utility,
+            HpCalibration: null,
+            StaminaCalibration: cal,
+            ManaCalibration: null,
+            StaminaEnabled: true);
+
+        Assert.Same(cal, preset.EffectiveStaminaCalibration());
+    }
+
+    [Fact]
+    public void EffectiveManaCalibration_ReturnsNullWhenDisabled()
+    {
+        var preset = new Preset(
+            Id: "p", Name: "P", Nickname: "N", Role: Role.Utility,
+            HpCalibration: null,
+            StaminaCalibration: null,
+            ManaCalibration: new BarCalibration(new CaptureRegion(0, 0, 100, 20), FillDirection.LTR),
+            ManaEnabled: false);
+
+        Assert.Null(preset.EffectiveManaCalibration());
+    }
 }

@@ -19,4 +19,14 @@ public static class AppConfigExtensions
             .ToList();
         return cfg with { Presets = presets };
     }
+
+    /// <summary>Returns the Stamina calibration if it's enabled, else null.
+    /// The toggle controls whether the bar is broadcast / tracked at runtime
+    /// without clearing the saved calibration, so re-enabling restores it.</summary>
+    public static Capture.BarCalibration? EffectiveStaminaCalibration(this Preset p) =>
+        p.StaminaEnabled ? p.StaminaCalibration : null;
+
+    /// <summary>Returns the Mana calibration if it's enabled, else null.</summary>
+    public static Capture.BarCalibration? EffectiveManaCalibration(this Preset p) =>
+        p.ManaEnabled ? p.ManaCalibration : null;
 }
