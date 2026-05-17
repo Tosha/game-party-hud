@@ -74,12 +74,46 @@ public partial class MainWindow : FluentWindow
             .Select(r => new RoleOption(r, RoleGlyph.For(r), RoleDisplay.For(r)))
             .ToArray();
 
+    /// <summary>
+    /// One row in the PresetCombo dropdown. Wraps a Preset id + display name with
+    /// edit-mode state for inline rename (Task 9), and a flag distinguishing the
+    /// "+ New preset" command row from real preset rows (Task 8). Public so the
+    /// PresetItemTemplateSelector can reflect on it.
+    /// </summary>
+    public sealed class PresetItemViewModel : System.ComponentModel.INotifyPropertyChanged
+    {
+        private string _name = "";
+        private bool _isEditing;
+
+        public string Id { get; init; } = "";
+        public bool IsCommandRow { get; init; }
+
+        public string Name
+        {
+            get => _name;
+            set { if (_name != value) { _name = value; OnPropertyChanged(nameof(Name)); } }
+        }
+
+        public bool IsEditing
+        {
+            get => _isEditing;
+            set { if (_isEditing != value) { _isEditing = value; OnPropertyChanged(nameof(IsEditing)); } }
+        }
+
+        public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+        private void OnPropertyChanged(string name) =>
+            PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(name));
+    }
+
+    private readonly System.Collections.ObjectModel.ObservableCollection<PresetItemViewModel> _presetItems = new();
+
     public MainWindow(IController controller)
     {
         InitializeComponent();
         _ctl = controller;
 
         RoleCombo.ItemsSource = RoleOptions;
+        PresetCombo.ItemsSource = _presetItems;
 
         // Wpf.Ui's InfoBar doesn't expose a public Closed routed event; the
         // built-in close button just flips IsOpen to false. We watch the
@@ -107,6 +141,8 @@ public partial class MainWindow : FluentWindow
         try
         {
             var cfg = _ctl.Config;
+            RebuildPresetItems();
+            PresetCombo.SelectedItem = _presetItems.FirstOrDefault(i => i.Id == cfg.ActivePresetId);
             var ap = cfg.ActivePreset;
             var defaultPreset = AppConfig.Defaults.ActivePreset;
             FullscreenDisclaimer.IsOpen = !cfg.FullscreenDisclaimerDismissed;
@@ -170,6 +206,37 @@ public partial class MainWindow : FluentWindow
     {
         // PartyStateChanged may fire off the UI thread.
         Dispatcher.Invoke(RefreshPartyState);
+    }
+
+    /// <summary>
+    /// Rebuilds the PresetCombo dropdown items from the current AppConfig.Presets list.
+    /// Called from PopulateFromConfig (initial load + after every config-change refresh).
+    /// The selected item is set by the caller; the _populating guard prevents the
+    /// SelectionChanged handler from treating that programmatic selection as a user action.
+    /// </summary>
+    private void RebuildPresetItems()
+    {
+        var cfg = _ctl.Config;
+        _presetItems.Clear();
+        foreach (var p in cfg.Presets)
+        {
+            _presetItems.Add(new PresetItemViewModel { Id = p.Id, Name = p.Name });
+        }
+    }
+
+    private void OnPresetChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_populating) return;
+        if (PresetCombo.SelectedItem is not PresetItemViewModel item) return;
+        if (item.IsCommandRow) return; // Task 8 wires up the create flow on this row.
+
+        // No-op if the user clicked the already-active row.
+        if (item.Id == _ctl.Config.ActivePresetId) return;
+
+        _ctl.UpdateConfig(_ctl.Config with { ActivePresetId = item.Id });
+        PopulateFromConfig();             // refreshes Nickname / Role / Bars
+        UpdateJoinButtonState();          // HP-calibration of new preset may flip JoinButton state
+        Log.Info($"MainWindow: active preset changed to '{item.Name}' (Id={item.Id}).");
     }
 
     private void RefreshPartyState()

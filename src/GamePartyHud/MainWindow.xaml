@@ -43,8 +43,28 @@
 
             <!-- LEFT COLUMN: Profile + Bars -->
             <StackPanel Grid.Column="0" Margin="24,4,12,12">
-                <!-- Profile sub-section -->
-                <TextBlock Text="Profile" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,10"/>
+                <!-- Profile sub-section. Heading shares a row with the preset
+                     selector; switching a preset swaps Nickname/Role/Bars
+                     content via PopulateFromConfig. -->
+                <Grid Margin="0,0,0,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0"
+                               Text="Profile" FontSize="18" FontWeight="SemiBold"
+                               VerticalAlignment="Center"/>
+                    <ComboBox Grid.Column="1"
+                              x:Name="PresetCombo"
+                              Width="180"
+                              SelectionChanged="OnPresetChanged">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                </Grid>
 
                 <!-- Nickname (left, flex) + Role (right, fixed) on one row.
                      2-row grid: labels on top, inputs below. Helper text
