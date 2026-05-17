@@ -13,7 +13,6 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>   <!-- Title bar -->
-            <RowDefinition Height="Auto"/>   <!-- Header (logo + gear) -->
             <RowDefinition Height="Auto"/>   <!-- Fullscreen disclaimer -->
             <RowDefinition Height="*"/>      <!-- Two-column content -->
             <RowDefinition Height="Auto"/>   <!-- Footer -->
@@ -21,37 +20,21 @@
 
         <ui:TitleBar Grid.Row="0" Title="Game Party HUD"/>
 
-        <!-- Header row: Settings gear icon, right-aligned. The logo slot
-             has been removed pending a real asset; add an Image (or a
-             logo + title StackPanel) to a left-aligned column here when
-             the asset lands. -->
-        <Grid Grid.Row="1" Margin="24,4,16,2">
-            <ui:Button x:Name="SettingsButton"
-                       HorizontalAlignment="Right"
-                       Background="Transparent"
-                       BorderThickness="0"
-                       Padding="6,3"
-                       ToolTip="Settings"
-                       Click="OnOpenSettings">
-                <ui:SymbolIcon Symbol="Settings24" FontSize="18"/>
-            </ui:Button>
-        </Grid>
-
         <!-- Fullscreen disclaimer: one-time persistent notice (existing
              behavior — IsOpen seeded from AppConfig.FullscreenDisclaimerDismissed,
              user dismissal persisted via OnFullscreenDisclaimerIsOpenChanged). -->
-        <ui:InfoBar Grid.Row="2"
+        <ui:InfoBar Grid.Row="1"
                     x:Name="FullscreenDisclaimer"
                     Severity="Warning"
                     IsClosable="True"
-                    Margin="24,0,24,12"
+                    Margin="24,8,24,12"
                     Title="If your game runs in fullscreen, the HUD may not be visible."
                     Message="Workaround: use borderless / windowed-fullscreen mode, or drag the HUD onto a second monitor."/>
 
         <!-- Two-column content area. Left column flexes; right column is
              a fixed 320px so the Party UI stays compact instead of
              stretching out across half the window. -->
-        <Grid Grid.Row="3">
+        <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
@@ -215,7 +198,27 @@
                 </Grid.RowDefinitions>
 
                 <StackPanel Grid.Row="0" VerticalAlignment="Top">
-                    <TextBlock Text="Party" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,12"/>
+                    <!-- Party heading shares a row with the Settings gear.
+                         Putting the gear here (instead of in a dedicated
+                         header row above the content) frees ~30px of
+                         vertical chrome at the top of the window. -->
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Party"
+                                   FontSize="18" FontWeight="SemiBold"
+                                   VerticalAlignment="Center"/>
+                        <ui:Button Grid.Column="1" x:Name="SettingsButton"
+                                   Background="Transparent"
+                                   BorderThickness="0"
+                                   Padding="6,3"
+                                   ToolTip="Settings"
+                                   Click="OnOpenSettings">
+                            <ui:SymbolIcon Symbol="Settings24" FontSize="18"/>
+                        </ui:Button>
+                    </Grid>
 
                     <!-- Not in a party yet -->
                     <StackPanel x:Name="NotInPartySection">
@@ -327,7 +330,7 @@
         </Grid>
 
         <!-- Footer: Close to tray + Quit app -->
-        <Grid Grid.Row="4" Margin="24,12,24,16">
+        <Grid Grid.Row="3" Margin="24,12,24,16">
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                 <ui:Button Content="Close to tray"
                            Appearance="Secondary"
